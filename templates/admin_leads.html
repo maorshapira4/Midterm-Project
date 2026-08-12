@@ -1,0 +1,66 @@
+{# admin_leads.html - עמוד ניהול לידים למנהל/ת: רשימת לידים, הוספה, עדכון סטטוס, והמרה ללקוח #}
+{% extends "base.html" %}
+
+{% block title %}ניהול לידים{% endblock %}
+
+{% block content %}
+<h1>ניהול לידים</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס טופס הוספת ליד #}
+    <h2>הוספת ליד חדש</h2>  {# כותרת אזור ההוספה #}
+    <form method="POST" action="{{ url_for('admin.add_lead') }}">  {# טופס הוספת ליד #}
+        <label for="full_name">שם מלא</label>  {# תווית לשם הליד #}
+        <input type="text" id="full_name" name="full_name" required>  {# שדה שם מלא, חובה #}
+
+        <label for="phone">טלפון</label>  {# תווית לטלפון #}
+        <input type="tel" id="phone" name="phone" required>  {# שדה טלפון, חובה #}
+
+        <label for="source">מקור הפנייה</label>  {# תווית למקור הפנייה #}
+        <input type="text" id="source" name="source" placeholder="למשל: אינסטגרם, המלצה, טלפון">  {# שדה מקור, אופציונלי #}
+
+        <label for="notes">הערות</label>  {# תווית להערות #}
+        <textarea id="notes" name="notes" rows="3"></textarea>  {# שדה הערות חופשיות, אופציונלי #}
+
+        <button type="submit">הוספת ליד</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+
+<div class="card">  {# כרטיס רשימת הלידים #}
+    <h2>רשימת לידים ({{ leads|length }})</h2>  {# כותרת עם מספר הלידים #}
+    <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+    <table>  {# טבלת הלידים #}
+        <thead>
+            <tr><th>שם</th><th>טלפון</th><th>מקור</th><th>הערות</th><th>סטטוס</th><th>פעולות</th></tr>
+        </thead>
+        <tbody>
+            {% for lead in leads %}  {# מעבר על כל ליד ברשימה #}
+            <tr>
+                <td>{{ lead.full_name }}</td>  {# שם הליד #}
+                <td>{{ lead.phone }}</td>  {# טלפון הליד #}
+                <td>{{ lead.source or '-' }}</td>  {# מקור הפנייה, או מקף אם ריק #}
+                <td>{{ lead.notes or '-' }}</td>  {# הערות, או מקף אם ריקות #}
+                <td>
+                    <form class="inline-form" method="POST" action="{{ url_for('admin.update_lead_status', lead_id=lead.id) }}">
+                        <select name="status" onchange="this.form.submit()">  {# שינוי הסטטוס שולח את הטופס מיד #}
+                            {% for status_option in statuses %}  {# מעבר על כל סטטוסי הליד האפשריים #}
+                                <option value="{{ status_option }}" {% if lead.status == status_option %}selected{% endif %}>{{ status_option }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </td>
+                <td>
+                    {% if lead.status != 'הפך ללקוח' %}  {# מציגים כפתור המרה רק אם הליד עדיין לא הפך ללקוח #}
+                    <form class="inline-form" method="POST" action="{{ url_for('admin.convert_lead', lead_id=lead.id) }}">
+                        <button type="submit" onclick="return confirm('להמיר את הליד ללקוח רשום?')">המרה ללקוח</button>  {# כפתור המרה עם אישור #}
+                    </form>
+                    {% else %}
+                        <span>-</span>  {# אין פעולה זמינה אחרי המרה #}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

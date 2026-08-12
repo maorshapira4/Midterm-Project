@@ -1,0 +1,276 @@
+/* style.css - עיצוב אחיד לכל דפי האתר: צבעים, גופנים, כרטיסים, טבלאות וטפסים. */
+
+:root {
+    /* משתני צבע גלובליים בסגנון קליניקת קוסמטיקה: ורוד רך, קרם, ולבן */
+    --color-primary: #c98a9a;      /* צבע ורוד עיקרי לכפתורים וכותרות */
+    --color-primary-dark: #a8677a; /* גוון כהה יותר של הוורוד, לריחוף על כפתורים */
+    --color-bg: #fdf6f3;           /* צבע רקע כללי, קרם בהיר */
+    --color-card: #ffffff;         /* צבע רקע לכרטיסים ולטבלאות */
+    --color-text: #4a3b3f;         /* צבע טקסט עיקרי, חום-סגלגל כהה */
+    --color-border: #eadfe0;       /* צבע גבולות עדין */
+    --color-success: #6f9c76;      /* צבע ירוק להודעות הצלחה */
+}
+
+* {
+    box-sizing: border-box;   /* גודל אלמנטים כולל padding ו-border, למניעת הפתעות בפריסה */
+}
+
+body {
+    margin: 0;                                  /* איפוס שוליים ברירת מחדל של הדפדפן */
+    font-family: "Segoe UI", Arial, sans-serif;  /* גופן קריא וברור, כולל תמיכה בעברית */
+    background-color: var(--color-bg);            /* צבע רקע הדף כולו */
+    color: var(--color-text);                        /* צבע הטקסט הכללי בדף */
+}
+
+.site-header {
+    background-color: var(--color-card);   /* רקע לבן לכותרת העליונה */
+    border-bottom: 1px solid var(--color-border);  /* קו מפריד עדין מתחת לכותרת */
+    padding: 12px 24px;                       /* ריווח פנימי נוח */
+}
+
+.site-header-inner {
+    max-width: 1000px;      /* רוחב מקסימלי כדי שהתוכן לא ייפרש על כל המסך במסכים רחבים */
+    margin: 0 auto;           /* מרכוז הכותרת בעמוד */
+    display: flex;              /* פריסה אופקית של הלוגו ותפריט הניווט */
+    justify-content: space-between;  /* ריווח בין הלוגו לתפריט */
+    align-items: center;               /* יישור אנכי למרכז */
+    flex-wrap: wrap;                     /* מעבר שורה אוטומטי במסכים צרים (הכנה לניידים) */
+    gap: 8px;                              /* רווח בין אלמנטים כשיש מעבר שורה */
+}
+
+.brand {
+    font-size: 1.3em;               /* גודל טקסט בולט ללוגו */
+    font-weight: bold;                 /* הדגשת שם הקליניקה */
+    color: var(--color-primary-dark);    /* צבע הלוגו */
+    text-decoration: none;                 /* הסרת קו תחתון מהקישור */
+}
+
+.nav-links a {
+    margin-inline-start: 12px;    /* רווח בין קישורי הניווט (תומך RTL אוטומטית) */
+    color: var(--color-text);       /* צבע קישורי הניווט */
+    text-decoration: none;            /* הסרת קו תחתון מהקישורים */
+    font-size: 0.95em;                  /* גודל טקסט מעט קטן יותר מהלוגו */
+}
+
+.nav-links a:hover {
+    color: var(--color-primary-dark);  /* הדגשת קישור בעת ריחוף עכבר */
+    text-decoration: underline;           /* קו תחתון בעת ריחוף, לנוחות שימוש */
+}
+
+.nav-divider {
+    margin-inline-start: 12px;   /* רווח לפני קו המפריד */
+    color: var(--color-border);    /* צבע עדין לקו המפריד */
+}
+
+.page-content {
+    max-width: 1000px;   /* רוחב מקסימלי לתוכן, כדי לשמור על קריאות בטקסט */
+    margin: 24px auto;     /* ריווח עליון ותחתון, ומרכוז אופקי */
+    padding: 0 24px;         /* ריווח פנימי בצדדים במסכים צרים */
+}
+
+.flash-messages {
+    margin-bottom: 16px;   /* רווח מתחת לאזור ההודעות */
+}
+
+.flash-message {
+    background-color: #fff3e0;         /* רקע בגוון אזהרה/הצלחה עדין */
+    border: 1px solid #f0d9b5;           /* גבול תואם לרקע */
+    border-radius: 8px;                    /* פינות מעוגלות */
+    padding: 10px 16px;                       /* ריווח פנימי נוח לקריאה */
+    margin-bottom: 8px;                         /* רווח בין הודעות אם יש כמה */
+}
+
+h1, h2, h3 {
+    color: var(--color-primary-dark);   /* צבע אחיד לכל הכותרות באתר */
+}
+
+.card {
+    background-color: var(--color-card);      /* רקע לבן לכרטיס */
+    border: 1px solid var(--color-border);       /* גבול עדין סביב הכרטיס */
+    border-radius: 12px;                            /* פינות מעוגלות לכרטיס */
+    padding: 20px;                                     /* ריווח פנימי בכרטיס */
+    margin-bottom: 20px;                                 /* רווח בין כרטיסים */
+}
+
+.card-grid {
+    display: grid;                                     /* פריסת רשת לכרטיסי סטטיסטיקה בדשבורד */
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));  /* עמודות גמישות לפי רוחב המסך */
+    gap: 16px;                                             /* רווח בין הכרטיסים */
+    margin-bottom: 24px;                                     /* רווח מתחת לרשת הכרטיסים */
+}
+
+.stat-card {
+    background-color: var(--color-card);   /* רקע לבן לכרטיס סטטיסטיקה */
+    border: 1px solid var(--color-border);   /* גבול עדין */
+    border-radius: 12px;                        /* פינות מעוגלות */
+    padding: 16px;                                 /* ריווח פנימי */
+    text-align: center;                               /* מרכוז הטקסט בכרטיס */
+}
+
+.stat-value {
+    font-size: 1.8em;                     /* גודל בולט למספר הסטטיסטי */
+    font-weight: bold;                      /* הדגשת המספר */
+    color: var(--color-primary-dark);         /* צבע בולט למספר */
+}
+
+.stat-label {
+    font-size: 0.9em;    /* גודל טקסט קטן יותר לתווית מתחת למספר */
+    color: var(--color-text);  /* צבע טקסט רגיל */
+}
+
+table {
+    width: 100%;                 /* טבלה תופסת את כל הרוחב הזמין */
+    border-collapse: collapse;     /* איחוד קווי הגבול בין תאים לטבלה נקייה */
+    background-color: var(--color-card);  /* רקע לבן לטבלה */
+    border-radius: 8px;                     /* פינות מעוגלות (ייראה טוב עם overflow) */
+    overflow: hidden;                          /* חיתוך תוכן חורג כדי שהפינות המעוגלות יתקיימו */
+}
+
+th, td {
+    padding: 10px 12px;                    /* ריווח פנימי נוח בכל תא */
+    text-align: right;                        /* יישור טקסט לימין, מתאים לעברית */
+    border-bottom: 1px solid var(--color-border);  /* קו מפריד עדין בין שורות */
+}
+
+th {
+    background-color: var(--color-bg);   /* רקע מעט שונה לכותרות הטבלה */
+}
+
+.table-wrapper {
+    overflow-x: auto;    /* גלילה אופקית בטבלאות רחבות במסכים צרים, בלי לשבור את הפריסה */
+    margin-bottom: 20px;   /* רווח מתחת לטבלה */
+}
+
+form.inline-form {
+    display: inline;   /* טופס קטן (כמו כפתור מחיקה) שמופיע בתוך שורת טבלה בלי לשבור את הפריסה */
+}
+
+label {
+    display: block;             /* כל תווית בשורה משלה, מעל שדה הקלט */
+    margin-top: 10px;             /* רווח מעל כל תווית */
+    margin-bottom: 4px;             /* רווח קטן בין התווית לשדה */
+    font-weight: 600;                 /* הדגשה קלה של התוויות */
+}
+
+input, select, textarea {
+    width: 100%;                                /* שדות קלט תופסים את כל הרוחב הזמין */
+    padding: 8px 10px;                             /* ריווח פנימי נוח לקלט */
+    border: 1px solid var(--color-border);           /* גבול עדין תואם לעיצוב */
+    border-radius: 6px;                                /* פינות מעוגלות קלות */
+    font-size: 1em;                                       /* גודל טקסט קריא */
+    font-family: inherit;                                    /* שמירה על אותו גופן כמו שאר הדף */
+}
+
+button, .btn {
+    background-color: var(--color-primary);   /* צבע רקע ורוד לכפתורים */
+    color: white;                                 /* טקסט לבן על גבי הכפתור */
+    border: none;                                    /* ללא גבול */
+    border-radius: 6px;                                 /* פינות מעוגלות */
+    padding: 9px 18px;                                    /* ריווח פנימי נוח */
+    font-size: 1em;                                          /* גודל טקסט תואם לשאר האתר */
+    cursor: pointer;                                            /* סמן יד בעת ריחוף, לרמז שניתן ללחוץ */
+    margin-top: 12px;                                             /* רווח מעל הכפתור */
+}
+
+button:hover, .btn:hover {
+    background-color: var(--color-primary-dark);   /* הכהיית הכפתור בעת ריחוף */
+}
+
+.btn-danger {
+    background-color: #b95c5c;   /* צבע אדום-חום לכפתורי מחיקה/ביטול, כדי להבדיל מפעולות רגילות */
+}
+
+.btn-danger:hover {
+    background-color: #9c4747;   /* הכהיית כפתור המחיקה בעת ריחוף */
+}
+
+.status-badge {
+    display: inline-block;              /* תגית קטנה בתוך הטבלה */
+    padding: 3px 10px;                     /* ריווח פנימי לתגית */
+    border-radius: 12px;                      /* פינות מעוגלות מלאות (צורת "כדור") */
+    font-size: 0.85em;                           /* גודל טקסט קטן לתגית */
+    background-color: #f1e3e6;                      /* רקע ורוד בהיר לתגית סטטוס */
+    color: var(--color-primary-dark);                 /* צבע טקסט תואם */
+}
+
+.slots-grid {
+    display: flex;             /* פריסה אופקית של כפתורי משבצות הזמן */
+    flex-wrap: wrap;              /* מעבר שורה אוטומטי כשיש הרבה משבצות */
+    gap: 8px;                        /* רווח בין המשבצות */
+    margin: 10px 0;                     /* רווח מעל ומתחת לרשימת המשבצות */
+}
+
+.slot-option label {
+    display: inline-block;    /* תווית המשבצת מוצגת כמו כפתור קטן, לא בשורה נפרדת */
+    margin: 0;                   /* איפוס השוליים שהוגדרו ל-label באופן כללי */
+    padding: 6px 14px;              /* ריווח פנימי לתווית-כפתור */
+    border: 1px solid var(--color-primary);  /* גבול ורוד סביב כל אפשרות */
+    border-radius: 20px;                        /* צורת "כדור" לתווית */
+    cursor: pointer;                               /* סמן יד, לרמז שניתן ללחוץ */
+    font-weight: normal;                              /* ביטול ההדגשה הכללית של label */
+}
+
+.slot-option input {
+    display: none;   /* הסתרת כפתור הרדיו המקורי - נשתמש בתווית כתחליף ויזואלי */
+}
+
+.slot-option input:checked + label {
+    background-color: var(--color-primary);   /* צביעת הרקע כשהמשבצת הזו נבחרה בפועל */
+    color: white;                                 /* טקסט לבן כדי שיהיה קריא על הרקע הצבעוני */
+    border-color: var(--color-primary-dark);        /* הכהיית הגבול כדי להדגיש עוד יותר את הבחירה */
+    font-weight: bold;                                 /* הדגשת הטקסט של השעה שנבחרה */
+}
+
+.nav-logout-btn {
+    margin-inline-start: 12px;             /* רווח מהקישורים הסמוכים בתפריט */
+    margin-top: 0;                            /* ביטול הרווח העליון הכללי שמוגדר לכל הכפתורים באתר */
+    padding: 4px 12px;                           /* ריווח פנימי קטן, מתאים לכפתור בתוך תפריט */
+    font-size: 0.85em;                              /* גודל טקסט קטן יותר, כמו שאר קישורי התפריט */
+    background-color: transparent;                     /* רקע שקוף כדי שהכפתור ישתלב בתפריט */
+    color: var(--color-primary-dark);                     /* צבע טקסט תואם לשאר קישורי התפריט */
+    border: 1px solid var(--color-primary);                  /* גבול ורוד עדין סביב הכפתור */
+    border-radius: 6px;                                         /* פינות מעוגלות קלות */
+    cursor: pointer;                                               /* סמן יד, לרמז שניתן ללחוץ */
+}
+
+.nav-logout-btn:hover {
+    background-color: var(--color-primary);   /* מילוי ברקע ורוד בעת ריחוף */
+    color: white;                                 /* טקסט לבן על הרקע הצבעוני בעת ריחוף */
+}
+
+.service-checkboxes {
+    display: flex;              /* פריסה אופקית-גמישה של תיבות הסימון לשירותים */
+    flex-wrap: wrap;               /* מעבר שורה אוטומטי כשיש הרבה שירותים */
+    gap: 8px;                         /* רווח בין תיבות הסימון */
+    margin: 10px 0;                      /* רווח מעל ומתחת לרשימה */
+}
+
+.service-checkbox-option label {
+    display: flex;                  /* פריסה שמיישרת את תיבת הסימון ואת הטקסט זה לצד זה */
+    align-items: center;               /* יישור אנכי למרכז בין תיבת הסימון לטקסט */
+    gap: 8px;                             /* רווח קטן בין תיבת הסימון לטקסט שלצידה */
+    padding: 8px 14px;                       /* ריווח פנימי לתווית-כרטיס */
+    border: 1px solid var(--color-border);      /* גבול עדין סביב כל אפשרות שירות */
+    border-radius: 10px;                           /* פינות מעוגלות */
+    cursor: pointer;                                  /* סמן יד, לרמז שניתן ללחוץ */
+    font-weight: normal;                                 /* ביטול ההדגשה הכללית של label */
+    background-color: var(--color-card);                    /* רקע לבן, כמו שאר הכרטיסים באתר */
+}
+
+.service-checkbox-option input:checked + span {
+    font-weight: bold;                        /* הדגשת הטקסט של שירות שסומן */
+}
+
+.service-checkbox-option:has(input:checked) label {
+    border-color: var(--color-primary);           /* הדגשת הגבול של כרטיס שירות שסומן */
+    background-color: #f8ecef;                        /* רקע ורוד עדין לכרטיס שירות שסומן */
+}
+
+.selection-summary {
+    background-color: #f8ecef;              /* רקע ורוד עדין, מבליט את סיכום הבחירה */
+    border: 1px solid var(--color-primary);    /* גבול ורוד סביב הסיכום */
+    border-radius: 8px;                           /* פינות מעוגלות */
+    padding: 10px 16px;                              /* ריווח פנימי נוח לקריאה */
+    margin: 10px 0;                                     /* רווח מעל ומתחת לסיכום */
+    font-weight: bold;                                     /* הדגשת טקסט הסיכום */
+}

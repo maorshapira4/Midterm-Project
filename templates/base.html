@@ -1,0 +1,47 @@
+<!-- base.html - השלד המשותף לכל דפי האתר: כותרת, תפריט ניווט, אזור הודעות, ואזור התוכן של כל דף. -->
+<!DOCTYPE html>
+<html lang="he" dir="rtl">  <!-- הגדרת שפה עברית וכיווניות מימין לשמאל לכל האתר -->
+<head>
+    <meta charset="UTF-8">  <!-- קידוד תווים UTF-8, נדרש כדי שהעברית תוצג נכון -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  <!-- התאמה למסכים ניידים בעתיד -->
+    <title>{% block title %}קליניקת קוסמטיקה{% endblock %}</title>  <!-- כותרת הדף, ניתנת לשינוי בכל תבנית -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">  <!-- טעינת קובץ העיצוב -->
+</head>
+<body>
+    <header class="site-header">  <!-- כותרת עליונה קבועה עם תפריט הניווט -->
+        <div class="site-header-inner">
+            <a class="brand" href="{{ url_for('home_page') }}">קליניקת קוסמטיקה</a>  <!-- לוגו/שם, מוביל לעמוד הבית -->
+            <nav class="nav-links">  <!-- תפריט הניווט הראשי -->
+                <a href="{{ url_for('booking.show_booking_page') }}">קביעת תור</a>  <!-- מעבר למסך הזמנת תור -->
+                <a href="{{ url_for('booking.my_appointments') }}">התורים שלי</a>  <!-- מעבר למסך תורים אישי -->
+                <span class="nav-divider">|</span>  <!-- קו מפריד ויזואלי בין אזור הלקוח לאזור הניהול -->
+                {% if session.get('is_admin') %}  <!-- מציגים את קישורי הניהול רק למי שכבר הזין/ה סיסמה נכונה -->
+                    <a href="{{ url_for('dashboard.show_dashboard') }}">דשבורד</a>  <!-- מעבר ללוח המחוונים -->
+                    <a href="{{ url_for('admin.list_appointments') }}">ניהול תורים</a>  <!-- מעבר לניהול תורים -->
+                    <a href="{{ url_for('admin.list_customers') }}">לקוחות</a>  <!-- מעבר לניהול לקוחות -->
+                    <a href="{{ url_for('admin.list_leads') }}">לידים</a>  <!-- מעבר לניהול לידים -->
+                    <form class="inline-form" method="POST" action="{{ url_for('auth.logout') }}">  <!-- טופס התנתקות -->
+                        <button type="submit" class="nav-logout-btn">התנתקות</button>  <!-- כפתור התנתקות קטן -->
+                    </form>
+                {% else %}  <!-- מי שעדיין לא התחבר/ה רואה קישור כניסה בלבד, ולא את מסכי הניהול עצמם -->
+                    <a href="{{ url_for('auth.login') }}">כניסת מנהל/ת</a>  <!-- קישור למסך ההתחברות -->
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main class="page-content">  <!-- אזור התוכן המרכזי, משתנה בכל דף -->
+        {% with messages = get_flashed_messages() %}  <!-- שליפת כל הודעות ה-flash שנשלחו מהשרת -->
+            {% if messages %}  <!-- אם יש הודעות להצגה -->
+                <div class="flash-messages">  <!-- מיכל להצגת ההודעות למשתמש -->
+                    {% for message in messages %}  <!-- מעבר על כל הודעה בנפרד -->
+                        <div class="flash-message">{{ message }}</div>  <!-- הצגת ההודעה הבודדת -->
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}  <!-- כאן ייכנס התוכן הייחודי של כל דף בנפרד -->
+    </main>
+</body>
+</html>

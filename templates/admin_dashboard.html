@@ -1,0 +1,54 @@
+{# admin_dashboard.html - לוח המחוונים למנהל/ת: תורים השבוע, תורים שהושלמו שבוע שעבר, והכנסות שבועיות/חודשיות #}
+{% extends "base.html" %}
+
+{% block title %}דשבורד{% endblock %}
+
+{% block content %}
+<h1>לוח מחוונים</h1>  {# כותרת ראשית #}
+
+<div class="card-grid">  {# רשת כרטיסי סטטיסטיקה #}
+    <div class="stat-card">  {# כרטיס: מספר תורים השבוע #}
+        <div class="stat-value">{{ week_appointments_count }}</div>  {# המספר עצמו #}
+        <div class="stat-label">תורים מתוכננים השבוע</div>  {# הסבר למספר #}
+    </div>
+    <div class="stat-card">  {# כרטיס: תורים שהושלמו שבוע שעבר #}
+        <div class="stat-value">{{ last_week_completed }}</div>  {# המספר עצמו #}
+        <div class="stat-label">תורים שהושלמו בשבוע שעבר</div>  {# הסבר למספר #}
+    </div>
+    <div class="stat-card">  {# כרטיס: הכנסה שבועית #}
+        <div class="stat-value">{{ weekly_revenue }} ש"ח</div>  {# הסכום עצמו #}
+        <div class="stat-label">הכנסות השבוע (תורים שבוצעו)</div>  {# הסבר לסכום #}
+    </div>
+    <div class="stat-card">  {# כרטיס: הכנסה חודשית #}
+        <div class="stat-value">{{ monthly_revenue }} ש"ח</div>  {# הסכום עצמו #}
+        <div class="stat-label">הכנסות החודש (תורים שבוצעו)</div>  {# הסבר לסכום #}
+    </div>
+</div>
+
+<div class="card">  {# כרטיס פירוט תורי השבוע #}
+    <h2>התורים המתוכננים השבוע</h2>  {# כותרת אזור הרשימה #}
+    {% if week_appointments|length == 0 %}  {# אם אין תורים השבוע #}
+        <p>אין תורים מתוכננים השבוע.</p>
+    {% else %}
+        <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+        <table>  {# טבלת תורי השבוע #}
+            <thead>
+                <tr><th>תאריך</th><th>שעה</th><th>לקוח</th><th>שירותים</th><th>מחיר</th><th>סטטוס</th></tr>
+            </thead>
+            <tbody>
+                {% for appt in week_appointments %}  {# מעבר על כל תור בשבוע הנוכחי #}
+                <tr>
+                    <td>{{ appt.appointment_date }}</td>
+                    <td>{{ appt.appointment_time }}</td>
+                    <td>{{ appt.customer_name or appt.guest_name }}</td>
+                    <td>{{ appt.service_names }}</td>
+                    <td>{{ appt.price }} ש"ח</td>
+                    <td><span class="status-badge">{{ appt.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

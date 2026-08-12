@@ -1,0 +1,17 @@
+{# admin_invoice.html - עמוד הצגת חשבונית בודדת, בעיצוב שנראה כמו קבלה שאפשר להדפיס #}
+{% extends "base.html" %}
+
+{% block title %}חשבונית {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<h1>חשבונית מס</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס תוכן החשבונית #}
+    <p><strong>מספר חשבונית:</strong> {{ invoice.invoice_number }}</p>  {# מספר החשבונית הייחודי #}
+    <p><strong>לקוח:</strong> {{ invoice.customer_name }}</p>  {# שם הלקוח שעבורו הונפקה החשבונית #}
+    <p><strong>סכום:</strong> {{ invoice.amount }} ש"ח</p>  {# סכום החשבונית #}
+    <p><strong>תאריך הנפקה:</strong> {{ invoice.issue_date }}</p>  {# תאריך ושעת ההנפקה #}
+
+    <a class="btn" href="{{ url_for('admin.customer_detail', customer_id=invoice.customer_id) }}">חזרה לעמוד הלקוח</a>  {# קישור חזרה #}
+</div>
+{% endblock %}

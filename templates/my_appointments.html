@@ -1,0 +1,54 @@
+{# my_appointments.html - עמוד "התורים שלי": הלקוח מזין טלפון ורואה את התורים העתידיים שלו, עם אפשרות ביטול #}
+{% extends "base.html" %}
+
+{% block title %}התורים שלי{% endblock %}
+
+{% block content %}
+<h1>התורים שלי</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס טופס חיפוש לפי טלפון #}
+    <form method="GET" action="{{ url_for('booking.my_appointments') }}">  {# טופס GET לחיפוש לפי מספר טלפון #}
+        <label for="phone">הזינו את מספר הטלפון שלכם</label>  {# תווית לשדה הטלפון #}
+        <input type="tel" id="phone" name="phone" value="{{ phone or '' }}" required>  {# שדה טלפון, חובה #}
+        <button type="submit">הצג את התורים שלי</button>  {# כפתור לביצוע החיפוש #}
+    </form>
+</div>
+
+{% if phone %}  {# מוצג רק אחרי שהוזן טלפון #}
+<div class="card">  {# כרטיס תוצאות #}
+    {% if appointments|length == 0 %}  {# אם לא נמצאו תורים עתידיים #}
+        <p>לא נמצאו תורים עתידיים עבור מספר הטלפון הזה.</p>  {# הודעה למשתמש #}
+    {% else %}  {# יש תורים עתידיים - מציגים טבלה #}
+        <div class="table-wrapper">  {# עטיפה לגלילה אופקית במסכים צרים #}
+        <table>  {# טבלת התורים העתידיים #}
+            <thead>
+                <tr>
+                    <th>תאריך</th>  {# עמודת תאריך #}
+                    <th>שעה</th>  {# עמודת שעה #}
+                    <th>שירותים</th>  {# עמודת שמות השירותים #}
+                    <th>מחיר</th>  {# עמודת מחיר #}
+                    <th>ביטול</th>  {# עמודת פעולת ביטול #}
+                </tr>
+            </thead>
+            <tbody>
+                {% for appt in appointments %}  {# מעבר על כל תור עתידי #}
+                <tr>
+                    <td>{{ appt.appointment_date }}</td>  {# הצגת תאריך התור #}
+                    <td>{{ appt.appointment_time }}</td>  {# הצגת שעת התור #}
+                    <td>{{ appt.service_names }}</td>  {# הצגת רשימת שמות השירותים שנבחרו #}
+                    <td>{{ appt.price }} ש"ח</td>  {# הצגת מחיר התור #}
+                    <td>
+                        <form class="inline-form" method="POST" action="{{ url_for('booking.cancel_appointment', appointment_id=appt.id) }}">
+                            <input type="hidden" name="phone" value="{{ phone }}">  {# שמירת הטלפון לחזרה לאותו מסך #}
+                            <button type="submit" class="btn-danger" onclick="return confirm('לבטל את התור?')">ביטול תור</button>  {# כפתור ביטול עם אישור #}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

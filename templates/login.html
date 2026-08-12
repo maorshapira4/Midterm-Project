@@ -1,0 +1,18 @@
+{# login.html - טופס הזנת סיסמת ניהול, כדי למנוע מלקוחות גישה למסכי הניהול של המערכת #}
+{% extends "base.html" %}
+
+{% block title %}התחברות למנהל/ת{% endblock %}
+
+{% block content %}
+<h1>התחברות למנהל/ת</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס טופס ההתחברות #}
+    <p>יש להזין את סיסמת הניהול כדי להיכנס למסכי הניהול (דשבורד, תורים, לקוחות ולידים).</p>  {# הסבר קצר #}
+    <form method="POST" action="{{ url_for('auth.submit_login') }}">  {# טופס שליחת הסיסמה #}
+        <input type="hidden" name="next" value="{{ next }}">  {# שמירת היעד המקורי שאליו נרצה לחזור #}
+        <label for="password">סיסמת ניהול</label>  {# תווית לשדה הסיסמה #}
+        <input type="password" id="password" name="password" required autofocus>  {# שדה סיסמה, מוסתר בהקלדה #}
+        <button type="submit">כניסה</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+{% endblock %}

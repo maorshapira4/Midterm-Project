@@ -1,0 +1,53 @@
+{# admin_customers.html - עמוד ניהול לקוחות למנהל/ת: רשימת כל הלקוחות, טופס הוספה, וקישור לעמוד פרטי כל לקוח #}
+{% extends "base.html" %}
+
+{% block title %}ניהול לקוחות{% endblock %}
+
+{% block content %}
+<h1>ניהול לקוחות</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס טופס הוספת לקוח #}
+    <h2>הוספת לקוח חדש</h2>  {# כותרת אזור ההוספה #}
+    <form method="POST" action="{{ url_for('admin.add_customer') }}">  {# טופס הוספת לקוח #}
+        <label for="full_name">שם מלא</label>  {# תווית לשם הלקוח #}
+        <input type="text" id="full_name" name="full_name" required>  {# שדה שם מלא, חובה #}
+
+        <label for="phone">טלפון</label>  {# תווית לטלפון #}
+        <input type="tel" id="phone" name="phone" required>  {# שדה טלפון, חובה #}
+
+        <label for="email">אימייל</label>  {# תווית לאימייל #}
+        <input type="email" id="email" name="email">  {# שדה אימייל, אופציונלי #}
+
+        <label for="address">כתובת</label>  {# תווית לכתובת #}
+        <input type="text" id="address" name="address">  {# שדה כתובת, אופציונלי #}
+
+        <button type="submit">הוספת לקוח</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+
+<div class="card">  {# כרטיס רשימת הלקוחות #}
+    <h2>רשימת לקוחות ({{ customers|length }})</h2>  {# כותרת עם מספר הלקוחות #}
+    <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+    <table>  {# טבלת הלקוחות #}
+        <thead>
+            <tr><th>שם מלא</th><th>טלפון</th><th>אימייל</th><th>כתובת</th><th>פעולות</th></tr>  {# כותרות עמודות #}
+        </thead>
+        <tbody>
+            {% for customer in customers %}  {# מעבר על כל לקוח ברשימה #}
+            <tr>
+                <td><a href="{{ url_for('admin.customer_detail', customer_id=customer.id) }}">{{ customer.full_name }}</a></td>  {# שם הלקוח, מקושר לפרטיו #}
+                <td>{{ customer.phone }}</td>  {# טלפון הלקוח #}
+                <td>{{ customer.email or '-' }}</td>  {# אימייל הלקוח, או מקף אם ריק #}
+                <td>{{ customer.address or '-' }}</td>  {# כתובת הלקוח, או מקף אם ריקה #}
+                <td>
+                    <form class="inline-form" method="POST" action="{{ url_for('admin.delete_customer', customer_id=customer.id) }}">
+                        <button type="submit" class="btn-danger" onclick="return confirm('למחוק את הלקוח לצמיתות?')">מחיקה</button>  {# כפתור מחיקה עם אישור #}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

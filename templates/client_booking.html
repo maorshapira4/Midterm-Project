@@ -1,0 +1,83 @@
+{# client_booking.html - עמוד הזמנת תור עצמאית ללקוח: בחירת שירות אחד או יותר ותאריך, ולאחר מכן שעה ופרטים אישיים #}
+{% extends "base.html" %}
+
+{% block title %}קביעת תור{% endblock %}
+
+{% block content %}
+<h1>קביעת תור חדש</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס שלב 1: בחירת שירותים ותאריך #}
+    <h2>שלב 1: בחירת שירותים ותאריך</h2>  {# כותרת השלב הראשון #}
+    <form method="GET" action="{{ url_for('booking.show_booking_page') }}">  {# טופס GET שמרענן את הדף עם הבחירה #}
+        <label>אילו טיפולים תרצו? (אפשר לבחור יותר מאחד)</label>  {# תווית לבחירת שירותים מרובים #}
+        <div class="service-checkboxes">  {# רשת תיבות סימון לבחירת שירותים #}
+            {% for service in services %}  {# מעבר על כל השירותים הקיימים #}
+                <span class="service-checkbox-option">  {# עטיפה ויזואלית לכל אפשרות שירות #}
+                    <label for="service-{{ service.id }}">
+                        <input type="checkbox" id="service-{{ service.id }}" name="service_ids" value="{{ service.id }}"
+                               {% if service.id in selected_service_ids %}checked{% endif %}>  {# סימון מחדש אם כבר נבחר #}
+                        <span>{{ service.name }} ({{ service.default_duration_minutes }} דק', {{ service.default_price }} ש"ח)</span>
+                    </label>
+                </span>
+            {% endfor %}
+        </div>
+
+        <label for="date">איזה תאריך?</label>  {# תווית לבחירת תאריך #}
+        <input type="date" id="date" name="date" min="{{ today }}" value="{{ selected_date or '' }}" required>  {# שדה תאריך, לא מאפשר עבר #}
+
+        <button type="submit">הצג שעות פנויות</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+
+{% if selected_service_ids and selected_date %}  {# מוצג רק אחרי שנבחרו שירותים ותאריך #}
+<div class="card">  {# כרטיס שלב 2: בחירת שעה ופרטים אישיים #}
+    <h2>שלב 2: בחירת שעה ופרטים אישיים</h2>  {# כותרת השלב השני #}
+
+    {% if not selected_services %}  {# אם אף שירות מהבחירה לא נמצא בפועל (מקרה קצה) #}
+        <p>השירותים שנבחרו אינם תקינים.</p>
+    {% else %}
+        <div class="selection-summary">  {# תיבת סיכום הבחירה: אילו שירותים, כמה זמן וכמה עולה בסך הכל #}
+            טיפולים שנבחרו: {{ selected_services|map(attribute='name')|join(', ') }}
+            &nbsp;|&nbsp; משך כולל: {{ total_duration }} דקות
+            &nbsp;|&nbsp; מחיר כולל: {{ total_price }} ש"ח
+        </div>
+
+        {% if free_slots|length == 0 %}  {# אם אין אף משבצת פנויה ביום זה #}
+            <p>אין שעות פנויות בתאריך זה (או שהקליניקה סגורה ביום זה). נסו תאריך אחר.</p>  {# הודעה למשתמש #}
+        {% else %}  {# יש משבצות פנויות - מציגים טופס הזמנה מלא #}
+            <form method="POST" action="{{ url_for('booking.submit_booking') }}">  {# טופס שליחת ההזמנה בפועל #}
+                {% for service_id in selected_service_ids %}  {# שמירת כל השירותים שנבחרו כשדות חבויים #}
+                    <input type="hidden" name="service_ids" value="{{ service_id }}">
+                {% endfor %}
+                <input type="hidden" name="appointment_date" value="{{ selected_date }}">  {# שמירת התאריך שנבחר #}
+
+                <label>שעה פנויה:</label>  {# תווית לבחירת שעה #}
+                <div class="slots-grid">  {# רשת כפתורי שעות #}
+                    {% for slot in free_slots %}  {# מעבר על כל משבצת פנויה #}
+                        <span class="slot-option">  {# עטיפה ויזואלית לכל אפשרות שעה #}
+                            <input type="radio" id="slot-{{ slot }}" name="appointment_time" value="{{ slot }}" required>
+                            <label for="slot-{{ slot }}">{{ slot }}</label>  {# תווית לחיצה לבחירת השעה, מודגשת כשנבחרה #}
+                        </span>
+                    {% endfor %}
+                </div>
+
+                <label for="full_name">שם מלא</label>  {# תווית לשם הלקוח #}
+                <input type="text" id="full_name" name="full_name" required>  {# שדה שם מלא, חובה #}
+
+                <label for="phone">טלפון</label>  {# תווית לטלפון #}
+                <input type="tel" id="phone" name="phone" required>  {# שדה טלפון, חובה (משמש גם לזיהוי בעתיד) #}
+
+                <label for="gender">מגדר</label>  {# תווית למגדר בעל/ת התור #}
+                <select id="gender" name="gender" required>  {# תפריט בחירת מגדר, שדה חובה #}
+                    <option value="">— בחרו —</option>
+                    <option value="אישה">אישה</option>
+                    <option value="גבר">גבר</option>
+                </select>
+
+                <button type="submit">אישור קביעת התור</button>  {# כפתור לשליחת ההזמנה הסופית #}
+            </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

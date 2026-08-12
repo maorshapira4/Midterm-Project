@@ -1,0 +1,84 @@
+{# admin_customer_detail.html - עמוד פרטי לקוח בודד: פרטים אישיים, היסטוריית תורים, היסטוריית חשבוניות, והפקת חשבונית חדשה #}
+{% extends "base.html" %}
+
+{% block title %}{{ customer.full_name }} - פרטי לקוח{% endblock %}
+
+{% block content %}
+<h1>{{ customer.full_name }}</h1>  {# כותרת עם שם הלקוח #}
+
+<div class="card">  {# כרטיס פרטים אישיים #}
+    <h2>פרטים אישיים</h2>  {# כותרת אזור הפרטים #}
+    <p><strong>טלפון:</strong> {{ customer.phone }}</p>  {# הצגת מספר הטלפון #}
+    <p><strong>אימייל:</strong> {{ customer.email or '-' }}</p>  {# הצגת האימייל, או מקף אם ריק #}
+    <p><strong>כתובת:</strong> {{ customer.address or '-' }}</p>  {# הצגת הכתובת, או מקף אם ריקה #}
+</div>
+
+<div class="card">  {# כרטיס היסטוריית תורים #}
+    <h2>היסטוריית תורים ({{ appointments|length }})</h2>  {# כותרת עם מספר התורים #}
+    {% if appointments|length == 0 %}  {# אם אין תורים כלל #}
+        <p>אין עדיין תורים ללקוח זה.</p>
+    {% else %}
+        <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+        <table>  {# טבלת היסטוריית התורים #}
+            <thead>
+                <tr><th>תאריך</th><th>שעה</th><th>שירותים</th><th>מחיר</th><th>סטטוס</th></tr>
+            </thead>
+            <tbody>
+                {% for appt in appointments %}  {# מעבר על כל תור בהיסטוריה #}
+                <tr>
+                    <td>{{ appt.appointment_date }}</td>
+                    <td>{{ appt.appointment_time }}</td>
+                    <td>{{ appt.service_names }}</td>
+                    <td>{{ appt.price }} ש"ח</td>
+                    <td><span class="status-badge">{{ appt.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    {% endif %}
+</div>
+
+<div class="card">  {# כרטיס הפקת חשבונית חדשה #}
+    <h2>הפקת חשבונית חדשה</h2>  {# כותרת אזור החשבוניות #}
+    <form method="POST" action="{{ url_for('admin.create_invoice', customer_id=customer.id) }}">  {# טופס יצירת חשבונית #}
+        <label for="appointment_id">תור משויך (אופציונלי)</label>  {# תווית לבחירת תור משויך #}
+        <select id="appointment_id" name="appointment_id">  {# תפריט בחירת תור מתוך היסטוריית הלקוח #}
+            <option value="">— ללא שיוך לתור —</option>
+            {% for appt in appointments %}  {# מעבר על כל תור בהיסטוריה #}
+                <option value="{{ appt.id }}">{{ appt.appointment_date }} {{ appt.appointment_time }} - {{ appt.service_names }} ({{ appt.price }} ש"ח)</option>
+            {% endfor %}
+        </select>
+
+        <label for="amount">סכום (ש"ח)</label>  {# תווית לסכום החשבונית #}
+        <input type="number" step="0.01" min="0" id="amount" name="amount" required>  {# שדה סכום, חובה #}
+
+        <button type="submit">הפקת חשבונית</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+
+<div class="card">  {# כרטיס היסטוריית חשבוניות #}
+    <h2>היסטוריית חשבוניות ({{ invoices|length }})</h2>  {# כותרת עם מספר החשבוניות #}
+    {% if invoices|length == 0 %}  {# אם אין חשבוניות כלל #}
+        <p>אין עדיין חשבוניות ללקוח זה.</p>
+    {% else %}
+        <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+        <table>  {# טבלת היסטוריית החשבוניות #}
+            <thead>
+                <tr><th>מספר חשבונית</th><th>סכום</th><th>תאריך הנפקה</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}  {# מעבר על כל חשבונית בהיסטוריה #}
+                <tr>
+                    <td>{{ invoice.invoice_number }}</td>
+                    <td>{{ invoice.amount }} ש"ח</td>
+                    <td>{{ invoice.issue_date }}</td>
+                    <td><a href="{{ url_for('admin.view_invoice', invoice_id=invoice.id) }}">צפייה</a></td>  {# קישור לצפייה בחשבונית #}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{# admin_appointments.html - עמוד ניהול תורים למנהל/ת: רשימה מלאה עם סינון, הוספה ידנית, עדכון סטטוס ומחיקה #}
+{% extends "base.html" %}
+
+{% block title %}ניהול תורים{% endblock %}
+
+{% block content %}
+<h1>ניהול תורים</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס טופס סינון #}
+    <h2>סינון</h2>  {# כותרת אזור הסינון #}
+    <form method="GET" action="{{ url_for('admin.list_appointments') }}">  {# טופס GET לסינון הרשימה #}
+        <label for="status">סטטוס</label>  {# תווית לסינון לפי סטטוס #}
+        <select id="status" name="status">  {# תפריט בחירת סטטוס לסינון #}
+            <option value="">הכל</option>
+            <option value="ממתין" {% if status_filter == 'ממתין' %}selected{% endif %}>ממתין</option>
+            <option value="בוצע" {% if status_filter == 'בוצע' %}selected{% endif %}>בוצע</option>
+            <option value="בוטל" {% if status_filter == 'בוטל' %}selected{% endif %}>בוטל</option>
+        </select>
+        <label for="date">תאריך</label>  {# תווית לסינון לפי תאריך #}
+        <input type="date" id="date" name="date" value="{{ date_filter or '' }}">  {# שדה תאריך לסינון #}
+        <button type="submit">סנן</button>  {# כפתור הפעלת הסינון #}
+    </form>
+</div>
+
+<div class="card">  {# כרטיס טופס הוספת תור ידנית #}
+    <h2>הוספת תור חדש (למשל בעקבות שיחת טלפון)</h2>  {# כותרת אזור ההוספה #}
+    <form method="POST" action="{{ url_for('admin.add_appointment') }}">  {# טופס הוספת תור על ידי המנהל/ת #}
+        <label for="customer_id">לקוח קיים (אופציונלי)</label>  {# תווית לבחירת לקוח קיים #}
+        <select id="customer_id" name="customer_id">  {# תפריט בחירת לקוח קיים מהרשימה #}
+            <option value="">— לקוח חדש / אורח —</option>
+            {% for customer in customers %}  {# מעבר על כל הלקוחות הקיימים #}
+                <option value="{{ customer.id }}">{{ customer.full_name }} ({{ customer.phone }})</option>
+            {% endfor %}
+        </select>
+
+        <label for="guest_name">שם (אם אין לקוח קיים)</label>  {# תווית לשם אורח #}
+        <input type="text" id="guest_name" name="guest_name">  {# שדה שם, נדרש רק אם אין לקוח קיים #}
+
+        <label for="guest_phone">טלפון (אם אין לקוח קיים)</label>  {# תווית לטלפון אורח #}
+        <input type="tel" id="guest_phone" name="guest_phone">  {# שדה טלפון, נדרש רק אם אין לקוח קיים #}
+
+        <label for="gender">מגדר</label>  {# תווית למגדר בעל/ת התור #}
+        <select id="gender" name="gender" required>  {# תפריט בחירת מגדר, שדה חובה #}
+            <option value="">— בחרו —</option>
+            <option value="אישה">אישה</option>
+            <option value="גבר">גבר</option>
+        </select>
+
+        <label>שירותים (אפשר לבחור יותר מאחד)</label>  {# תווית לבחירת שירותים מרובים #}
+        <div class="service-checkboxes">  {# רשת תיבות סימון לבחירת שירותים #}
+            {% for service in services %}  {# מעבר על כל השירותים הקיימים #}
+                <span class="service-checkbox-option">  {# עטיפה ויזואלית לכל אפשרות שירות #}
+                    <label for="admin-service-{{ service.id }}">
+                        <input type="checkbox" id="admin-service-{{ service.id }}" name="service_ids" value="{{ service.id }}">
+                        <span>{{ service.name }} ({{ service.default_duration_minutes }} דק', {{ service.default_price }} ש"ח)</span>
+                    </label>
+                </span>
+            {% endfor %}
+        </div>
+
+        <label for="appointment_date">תאריך</label>  {# תווית לתאריך התור #}
+        <input type="date" id="appointment_date" name="appointment_date" required>  {# שדה תאריך, חובה #}
+
+        <label for="appointment_time">שעה</label>  {# תווית לשעת התור #}
+        <input type="time" id="appointment_time" name="appointment_time" required>  {# שדה שעה, חובה #}
+
+        <button type="submit">הוספת תור</button>  {# כפתור לשליחת הטופס #}
+    </form>
+</div>
+
+<div class="card">  {# כרטיס רשימת התורים #}
+    <h2>רשימת תורים ({{ appointments|length }})</h2>  {# כותרת עם מספר התורים שנמצאו #}
+    <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
+    <table>  {# טבלת התורים #}
+        <thead>
+            <tr>
+                <th>תאריך</th><th>שעה</th><th>לקוח</th><th>מגדר</th><th>שירותים</th>
+                <th>מחיר</th><th>סטטוס</th><th>פעולות</th>  {# כותרות העמודות #}
+            </tr>
+        </thead>
+        <tbody>
+            {% for appt in appointments %}  {# מעבר על כל תור ברשימה #}
+            <tr>
+                <td>{{ appt.appointment_date }}</td>  {# תאריך התור #}
+                <td>{{ appt.appointment_time }}</td>  {# שעת התור #}
+                <td>{{ appt.customer_name or appt.guest_name }}</td>  {# שם הלקוח, או שם האורח אם אין לקוח רשום #}
+                <td>{{ appt.gender }}</td>  {# מגדר בעל/ת התור #}
+                <td>{{ appt.service_names }}</td>  {# רשימת שמות השירותים שנבחרו לתור, מופרדים בפסיקים #}
+                <td>{{ appt.price }} ש"ח</td>  {# מחיר התור #}
+                <td><span class="status-badge">{{ appt.status }}</span></td>  {# תגית הסטטוס הנוכחי #}
+                <td>
+                    <form class="inline-form" method="POST" action="{{ url_for('admin.update_appointment_status', appointment_id=appt.id) }}">
+                        <select name="status" onchange="this.form.submit()">  {# שינוי הסטטוס שולח את הטופס מיד #}
+                            <option value="ממתין" {% if appt.status == 'ממתין' %}selected{% endif %}>ממתין</option>
+                            <option value="בוצע" {% if appt.status == 'בוצע' %}selected{% endif %}>בוצע</option>
+                            <option value="בוטל" {% if appt.status == 'בוטל' %}selected{% endif %}>בוטל</option>
+                        </select>
+                    </form>
+                    <form class="inline-form" method="POST" action="{{ url_for('admin.delete_appointment', appointment_id=appt.id) }}">
+                        <button type="submit" class="btn-danger" onclick="return confirm('למחוק את התור לצמיתות?')">מחיקה</button>  {# כפתור מחיקה עם אישור #}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}
