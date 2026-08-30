@@ -4,6 +4,8 @@ app.py - נקודת הכניסה הראשית של האפליקציה.
 מסכי המערכת (blueprints) אליה, והפעלת השרת המקומי. כדי להריץ את כל המערכת - מריצים קובץ זה בלבד.
 """
 
+from datetime import timedelta               # לחישוב משך תפוגת סשן המנהל/ת (חוסר פעילות)
+
 from flask import Flask, render_template   # מחלקת האפליקציה הראשית של Flask, וכלי הצגת תבניות
 
 import config       # קובץ ההגדרות הכלליות של הפרויקט
@@ -19,7 +21,12 @@ from routes.auth_routes import auth_bp                 # מסכי ההתחברו
 def create_app():
     """בונה ומחזירה את אפליקציית ה-Flask המוכנה, אחרי שכל הבלוקים (blueprints) חוברו אליה."""
     app = Flask(__name__)                    # יצירת אובייקט אפליקציית Flask חדש
-    app.secret_key = config.SECRET_KEY          # הגדרת מפתח סודי, נדרש עבור הודעות flash בין דפים
+    app.secret_key = config.SECRET_KEY          # הגדרת מפתח סודי, נדרש עבור הודעות flash בין דפים ולחתימת הסשן
+
+    # תפוגת סשן אוטומטית למנהל/ת: אחרי X דקות בלי אף בקשה חדשה, ה-session נחשב פג ודורש התחברות מחדש.
+    # "SESSION_REFRESH_EACH_REQUEST" (ברירת מחדל True ב-Flask) דואג שכל בקשה חדשה "מאריכה" את השעון -
+    # כך שזו תפוגה לפי חוסר פעילות, ולא זמן קבוע מרגע ההתחברות.
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=config.ADMIN_SESSION_TIMEOUT_MINUTES)
 
     app.register_blueprint(booking_bp)            # חיבור מסכי הלקוח לאפליקציה
     app.register_blueprint(admin_bp)                 # חיבור מסכי הניהול לאפליקציה
@@ -30,6 +37,17 @@ def create_app():
     def home_page():
         """מציג עמוד פתיחה עם שתי אפשרויות: כניסה כלקוח לקביעת תור, או כניסה כמנהל/ת לניהול המערכת."""
         return render_template("home.html")                 # הצגת תבנית עמוד הבית
+
+    @app.after_request
+    def add_no_cache_headers(response):
+        """מוסיף לכל תגובה כותרות שאומרות לדפדפן לא לשמור אף עמוד בזיכרון המטמון (cache) או ב-
+        bfcache (זיכרון "קדימה/אחורה" של הדפדפן). זה קריטי מבחינת אבטחה: בלי הכותרות האלה, אחרי
+        שמנהל/ת מתנתק/ת, לחיצה על "אחורה" בדפדפן (או טעינה מחדש במקרים מסוימים) עלולה להציג עמוד
+        ישן ששמור בזיכרון הדפדפן - עם תפריט הניהול המלא - בלי לפנות בכלל לשרת ולבדוק שה-session
+        עדיין בתוקף. הכותרות האלה מבטיחות שכל טעינת עמוד תמיד תבדוק מול השרת מחדש."""
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"     # תמיכה בדפדפנים/פרוקסי ישנים יותר
+        return response                               # החזרת התגובה עם הכותרות החדשות
 
     return app                                                 # החזרת האפליקציה המוכנה לשימוש
 
