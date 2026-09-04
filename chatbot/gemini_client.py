@@ -10,8 +10,16 @@ import os                                   # מודול נתיבי קבצים
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # מוסיף את תיקיית הפרויקט ל-path
 
 import json   # לפענוח תשובות JSON שחוזרות מ-Gemini
+import traceback   # לרישום פרטי שגיאה מלאים ל-log של השרת, בלי לחשוף אותם ללקוח עצמו
 
 import config   # קובץ ההגדרות הכלליות - כאן נמצא מפתח ה-API ושם המודל
+
+
+def _log_error(where, error):
+    """רושם שגיאה מלאה (כולל traceback) ל-stderr, כדי שתופיע ב-Error log של השרת (למשל
+    PythonAnywhere) - בלי לחשוף שום פרט טכני/שגיאה ללקוח עצמו, שממשיך לקבל הודעה עדינה בלבד."""
+    print(f"[chatbot/gemini_client] שגיאה ב-{where}: {error!r}", file=sys.stderr)   # שורת סיכום קצרה
+    traceback.print_exc(file=sys.stderr)                                              # ה-traceback המלא
 
 from google import genai            # ה-SDK הרשמי של Google ל-Gemini API
 from google.genai import types      # טיפוסי ההגדרות (GenerateContentConfig וכו') של ה-SDK
@@ -51,7 +59,8 @@ def extract_json(system_instruction, user_message, response_schema):
             ),
         )
         return json.loads(response.text)                                    # פענוח הטקסט שחזר לאובייקט פייתון (dict)
-    except Exception:                                                     # כל שגיאה (רשת/מכסה/JSON לא תקין/מפתח שגוי וכו')
+    except Exception as error:                                             # כל שגיאה (רשת/מכסה/JSON לא תקין/מפתח שגוי וכו')
+        _log_error("extract_json", error)                                     # רישום השגיאה המלאה ל-log של השרת
         return None                                                          # מחזירים None - הקוד הקורא יטפל בעדינות
 
 
@@ -70,5 +79,6 @@ def generate_text(system_instruction, user_message):
             ),
         )
         return response.text.strip()                                        # החזרת הטקסט שחזר, בלי רווחים מיותרים בקצוות
-    except Exception:                                                     # כל שגיאה (רשת/מכסה/מפתח שגוי וכו')
+    except Exception as error:                                             # כל שגיאה (רשת/מכסה/מפתח שגוי וכו')
+        _log_error("generate_text", error)                                     # רישום השגיאה המלאה ל-log של השרת
         return None                                                          # מחזירים None - הקוד הקורא יטפל בעדינות
