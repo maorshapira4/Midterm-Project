@@ -57,6 +57,21 @@ def search_customers_by_name(partial_name):
     return [dict(row) for row in rows]                                # המרת התוצאות לרשימת מילונים
 
 
+def find_customer_by_id_number(id_number):
+    """מחפש לקוח לפי תעודת זהות מדויקת. משמש את הצ'אטבוט לשתי מטרות: (1) אימות מהיר כשלקוח/ה
+    מוסר/ת שם ותעודת זהות יחד באותה הודעה, ו-(2) לדעת האם תעודת זהות שהוזנה בכלל רשומה במערכת,
+    כדי להציע ללקוח/ה חדש/ה לקבוע תור במקום סתם לומר "לא תואם". מחזיר לקוח או None."""
+    digits = "".join(character for character in (id_number or "") if character.isdigit())  # ספרות בלבד, להשוואה עקבית
+    if not digits:                                                    # אם לא נשארו ספרות כלל - אין מה לחפש
+        return None                                                      # מחזירים None בלי לפנות לבסיס הנתונים
+    connection = database.get_connection()                            # פתיחת חיבור לבסיס הנתונים
+    row = connection.execute(                                            # חיפוש לקוח עם תעודת הזהות המדויקת הזו
+        "SELECT * FROM customers WHERE id_number = ?", (digits,)
+    ).fetchone()
+    connection.close()                                                   # סגירת החיבור
+    return dict(row) if row else None                                     # החזרת מילון אם נמצא, אחרת None
+
+
 def find_customer_by_phone(phone):
     """מחפש לקוח קיים לפי מספר טלפון - משמש לקישור אוטומטי בעת הזמנת תור עצמית. מחזיר לקוח או None."""
     connection = database.get_connection()                       # פתיחת חיבור לבסיס הנתונים

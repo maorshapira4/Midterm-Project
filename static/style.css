@@ -266,18 +266,62 @@ button:hover, .btn:hover {
     background-color: #f8ecef;                        /* רקע ורוד עדין לכרטיס שירות שסומן */
 }
 
+/* ---------- מסך הצ'אטבוט: חלון שיחה אחד עם תיבת כתיבה קבועה בתחתיתו ---------- */
+
+.chat-page-header {
+    display: flex;                     /* כותרת וכפתור "שיחה חדשה" באותה שורה */
+    justify-content: space-between;       /* הכותרת בצד אחד, הכפתור בצד השני */
+    align-items: center;                     /* יישור אנכי למרכז */
+    flex-wrap: wrap;                            /* מעבר שורה במסכים צרים */
+    gap: 8px;                                      /* רווח כשיש מעבר שורה */
+    margin-bottom: 12px;                              /* רווח קטן מעל חלון השיחה */
+}
+
+.chat-page-header h1 {
+    margin: 0;      /* ביטול השוליים הגדולים של כותרת h1, כדי לחסוך מקום אנכי לשיחה */
+}
+
+.chat-window {
+    display: flex;                                 /* פריסה אנכית: תמלול למעלה, תיבת כתיבה למטה */
+    flex-direction: column;                           /* כיוון אנכי */
+    height: 68vh;                                        /* גובה קבוע ביחס למסך - כך העמוד עצמו לא מתארך */
+    min-height: 380px;                                      /* גובה מינימלי, כדי שיישאר שמיש גם במסכים נמוכים */
+    background-color: var(--color-card);                       /* רקע לבן, כמו שאר הכרטיסים באתר */
+    border: 1px solid var(--color-border);                        /* גבול עדין סביב החלון */
+    border-radius: 12px;                                             /* פינות מעוגלות */
+    overflow: hidden;                                                   /* שומר על הפינות המעוגלות בתוכן הפנימי */
+}
+
 .chat-history {
-    display: flex;                  /* פריסת הודעות השיחה זו מתחת לזו */
-    flex-direction: column;            /* כיוון אנכי, מהישנה ביותר לחדשה ביותר */
-    gap: 10px;                            /* רווח בין הודעות */
-    max-height: 420px;                       /* גובה מקסימלי, כדי שהעמוד לא יתארך יתר על המידה */
-    overflow-y: auto;                           /* גלילה אנכית כשיש הרבה הודעות */
+    flex: 1;                        /* תופס את כל הגובה הפנוי שנשאר מעל תיבת הכתיבה */
+    overflow-y: auto;                  /* הגלילה קורית כאן בלבד - לא בעמוד כולו */
+    display: flex;                        /* פריסת הודעות השיחה זו מתחת לזו */
+    flex-direction: column;                  /* כיוון אנכי, מהישנה ביותר לחדשה ביותר */
+    gap: 10px;                                  /* רווח בין הודעות */
+    padding: 16px;                                 /* ריווח פנימי סביב ההודעות */
+}
+
+.chat-empty-state {
+    color: var(--color-text);    /* צבע טקסט רגיל להודעת הפתיחה */
+    font-size: 0.95em;              /* מעט קטן יותר מטקסט רגיל */
+}
+
+.chat-empty-state ul {
+    margin: 8px 0;              /* רווח מעל ומתחת לרשימת הדוגמאות */
+    padding-inline-start: 20px;    /* הזחה של הרשימה (תומך RTL אוטומטית) */
+}
+
+.chat-privacy-note {
+    font-size: 0.9em;                    /* קטן יותר - זו הערת שוליים */
+    color: var(--color-primary-dark);       /* צבע ורוד כהה, כדי להדגיש שזו הערת פרטיות */
 }
 
 .chat-message {
     padding: 8px 14px;                 /* ריווח פנימי לתוך "בועת" ההודעה */
     border-radius: 12px;                  /* פינות מעוגלות, נראה כמו בועת צ'אט */
     max-width: 80%;                          /* הודעה לא תופסת את כל הרוחב, כמו באפליקציות צ'אט */
+    white-space: pre-line;                      /* שומר על ירידות שורה בתשובות מרובות-שורות (כמו רשימת טיפולים) */
+    line-height: 1.5;                              /* ריווח שורות נוח לקריאה */
 }
 
 .chat-message-user {
@@ -293,8 +337,43 @@ button:hover, .btn:hover {
 }
 
 .chat-message-label {
-    font-weight: bold;         /* הדגשת התווית ("את/ה" / "בוט") */
-    margin-inline-end: 6px;       /* רווח קטן בין התווית לתוכן ההודעה */
+    display: block;              /* התווית ("את/ה" / "בוט") בשורה נפרדת מעל תוכן ההודעה */
+    font-weight: bold;              /* הדגשת התווית */
+    font-size: 0.8em;                  /* קטנה יותר מהטקסט עצמו, כדי לא להסיח את העין */
+    opacity: 0.75;                        /* מעט שקופה, כמו תווית משנית */
+    margin-bottom: 2px;                      /* רווח קטן בין התווית לתוכן */
+}
+
+.chat-composer {
+    display: flex;                                     /* שדה הקלט וכפתור השליחה באותה שורה */
+    gap: 8px;                                             /* רווח בין השדה לכפתור */
+    padding: 12px 16px;                                      /* ריווח פנימי סביב תיבת הכתיבה */
+    border-top: 1px solid var(--color-border);                  /* קו מפריד עדין מעל תיבת הכתיבה */
+    background-color: var(--color-card);                           /* רקע לבן, נשאר קבוע בתחתית החלון */
+}
+
+.chat-input {
+    flex: 1;         /* שדה הקלט תופס את כל הרוחב הפנוי שנשאר לצד הכפתור */
+    margin: 0;          /* ביטול שוליים כלליים של שדות קלט, כדי שיתיישר מדויק מול הכפתור */
+}
+
+.chat-send-btn {
+    margin-top: 0;       /* ביטול הרווח העליון הכללי של כפתורים, ליישור מדויק מול שדה הקלט */
+    white-space: nowrap;    /* הטקסט "שליחה" לא נשבר לשתי שורות במסכים צרים */
+}
+
+.btn-secondary {
+    margin-top: 0;                                    /* ביטול הרווח העליון הכללי של כפתורים */
+    padding: 6px 14px;                                   /* כפתור קטן יותר, משני באופיו */
+    font-size: 0.9em;                                       /* טקסט קטן יותר */
+    background-color: transparent;                             /* רקע שקוף - לא כפתור פעולה ראשי */
+    color: var(--color-primary-dark);                             /* טקסט בצבע הוורוד הכהה */
+    border: 1px solid var(--color-primary);                          /* גבול ורוד עדין */
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-primary);   /* מילוי ורוד בעת ריחוף */
+    color: white;                                 /* טקסט לבן על הרקע הצבעוני */
 }
 
 .selection-summary {

@@ -1,39 +1,55 @@
-{# chatbot.html - מסך הצ'אטבוט ללקוחות: תמלול השיחה עד כה, טופס לשליחת הודעה חדשה, וכפתור לאיפוס השיחה #}
+{# chatbot.html - מסך הצ'אטבוט ללקוחות: חלון שיחה אחד ורציף, שבו תמלול השיחה גולל בתוך עצמו
+   ותיבת הכתיבה נשארת תמיד קבועה בתחתית החלון - כך שגם בשיחה ארוכה אין צורך לגלול את העמוד
+   כדי להמשיך לכתוב. #}
 {% extends "base.html" %}
 
 {% block title %}צ'אט עם הבוט{% endblock %}
 
 {% block content %}
-<h1>צ'אט - בדיקת התור שלי</h1>  {# כותרת ראשית #}
-
-<div class="card">  {# כרטיס הסבר קצר על השימוש בבוט #}
-    <p>אפשר לכתוב בשפה חופשית, למשל: <em>"קוראים לי דנה ויש לי תור ב-15.03.2027"</em>.
-    לפני שהבוט חושף כל פרט על התור, הוא יבקש לאמת את זהותך עם תעודת זהות.</p>
+<div class="chat-page-header">  {# כותרת קומפקטית, כדי להשאיר כמה שיותר מקום לשיחה עצמה #}
+    <h1>צ'אט - בדיקת התור שלי</h1>  {# כותרת ראשית #}
+    <form class="inline-form" method="POST" action="{{ url_for('chatbot.reset_conversation') }}">  {# איפוס השיחה #}
+        <button type="submit" class="btn-secondary">שיחה חדשה</button>  {# כפתור להתחלת שיחה מאפס #}
+    </form>
 </div>
 
-<div class="card">  {# כרטיס תמלול השיחה #}
-    <div class="chat-history">  {# אזור הצגת כל הודעות השיחה עד כה #}
-        {% if history|length == 0 %}  {# אם השיחה עדיין לא התחילה #}
-            <p>השיחה עדיין ריקה - אפשר לכתוב הודעה ראשונה למטה כדי להתחיל.</p>
+<div class="chat-window">  {# ה"בועה" הראשית: תמלול + תיבת כתיבה יחד, בגובה קבוע #}
+    <div class="chat-history" id="chatHistory">  {# אזור הודעות השיחה - הוא זה שגולל, לא העמוד #}
+        {% if history|length == 0 %}  {# מצב פתיחה: השיחה עדיין ריקה #}
+            <div class="chat-empty-state">  {# הודעת פתיחה עם דוגמאות למה אפשר לשאול #}
+                <p><strong>שלום! אני העוזר/ת הדיגיטלי/ת של הקליניקה.</strong></p>
+                <p>אפשר לכתוב אליי בשפה חופשית, למשל:</p>
+                <ul>
+                    <li>"קוראים לי דנה ויש לי תור ב-15.03.2027"</li>
+                    <li>"כמה עולה טיפול פנים?"</li>
+                    <li>"מתי אתם פתוחים?"</li>
+                </ul>
+                <p class="chat-privacy-note">לפני שאמסור פרטים על תור כלשהו, אבקש לאמת את זהותך עם תעודת זהות.</p>
+            </div>
         {% endif %}
         {% for message in history %}  {# מעבר על כל הודעה בתמלול, לפי סדר הופעתה #}
             <div class="chat-message chat-message-{{ message.role }}">  {# מחלקת CSS שונה למשתמש/בוט #}
-                <span class="chat-message-label">{{ "את/ה" if message.role == "user" else "בוט" }}:</span>
-                <span class="chat-message-text">{{ message.text }}</span>
+                <span class="chat-message-label">{{ "את/ה" if message.role == "user" else "בוט" }}</span>
+                <span class="chat-message-text">{{ message.text }}</span>  {# תוכן ההודעה עצמה #}
             </div>
         {% endfor %}
     </div>
-</div>
 
-<div class="card">  {# כרטיס טופס שליחת הודעה חדשה #}
-    <form method="POST" action="{{ url_for('chatbot.send_message') }}">  {# טופס שליחת הודעה #}
-        <label for="message">ההודעה שלך</label>  {# תווית לשדה ההודעה #}
-        <input type="text" id="message" name="message" placeholder="לדוגמה: קוראים לי דנה ויש לי תור ב-15.03.2027" required autofocus>
-        <button type="submit">שליחה</button>  {# כפתור שליחת ההודעה #}
-    </form>
-
-    <form class="inline-form" method="POST" action="{{ url_for('chatbot.reset_conversation') }}">  {# טופס איפוס השיחה #}
-        <button type="submit" class="btn-danger">שיחה חדשה</button>  {# כפתור להתחלת שיחה מאפס #}
+    <form class="chat-composer" method="POST" action="{{ url_for('chatbot.send_message') }}">  {# תיבת הכתיבה #}
+        <input type="text" name="message" class="chat-input"
+               placeholder="כתבו כאן הודעה..." required autofocus autocomplete="off">  {# שדה ההודעה #}
+        <button type="submit" class="chat-send-btn">שליחה</button>  {# כפתור שליחה, לצד השדה באותה שורה #}
     </form>
 </div>
+
+<script>
+    // גלילה אוטומטית לתחתית תמלול השיחה בכל טעינת עמוד, כדי שההודעה האחרונה תמיד תהיה מול העיניים
+    // בלי שהמשתמש/ת יצטרך/תצטרך לגלול ידנית אחרי כל תשובה של הבוט.
+    (function scrollChatToBottom() {
+        var history = document.getElementById("chatHistory");  // אזור התמלול הגולל
+        if (history) {                                            // בדיקת קיום, ליתר ביטחון
+            history.scrollTop = history.scrollHeight;               // גלילה עד הסוף התחתון
+        }
+    })();
+</script>
 {% endblock %}

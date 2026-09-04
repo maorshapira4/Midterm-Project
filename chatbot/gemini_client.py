@@ -10,9 +10,31 @@ import os                                   # מודול נתיבי קבצים
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # מוסיף את תיקיית הפרויקט ל-path
 
 import json   # לפענוח תשובות JSON שחוזרות מ-Gemini
+import time   # להמתנה קצרה בין ניסיונות חוזרים (backoff)
 import traceback   # לרישום פרטי שגיאה מלאים ל-log של השרת, בלי לחשוף אותם ללקוח עצמו
 
 import config   # קובץ ההגדרות הכלליות - כאן נמצא מפתח ה-API ושם המודל
+
+from google import genai            # ה-SDK הרשמי של Google ל-Gemini API
+from google.genai import types      # טיפוסי ההגדרות (GenerateContentConfig וכו') של ה-SDK
+
+_client = None   # מופע יחיד (singleton) של הלקוח, כדי לא ליצור חיבור חדש בכל קריאה
+
+# כמה פעמים לנסות שוב קריאה שנכשלה משגיאה *זמנית* בלבד (עומס על השרת של Google / חריגה רגעית).
+# חשוב: ניסיון חוזר נעשה אך ורק כשהבקשה נכשלה ולא התקבלה תשובה - כלומר הוא לא "מבזבז" מכסה על
+# תשובה שכבר קיבלנו. שגיאות קבועות (מפתח שגוי, מודל לא קיים, בקשה לא חוקית) לא מנוסות שוב בכלל,
+# כי ניסיון נוסף בהן יחזיר בוודאות את אותה שגיאה - וזה כן היה בזבוז.
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY_SECONDS = 1.0   # ההמתנה מוכפלת בכל ניסיון: שנייה, שתיים, ארבע
+
+# מילות מפתח שמזהות שגיאה זמנית שכדאי לנסות בעקבותיה שוב
+_TRANSIENT_ERROR_MARKERS = (
+    "UNAVAILABLE",          # 503 - "המודל בעומס כרגע, נסו שוב מאוחר יותר"
+    "RESOURCE_EXHAUSTED",     # 429 - חריגה רגעית ממספר הבקשות המותר לדקה
+    "INTERNAL",                 # 500 - תקלה זמנית בצד של Google
+    "DEADLINE_EXCEEDED",          # פסק זמן ברשת
+    "503", "429", "500",            # קודי הסטטוס עצמם, ליתר ביטחון
+)
 
 
 def _log_error(where, error):
@@ -21,10 +43,53 @@ def _log_error(where, error):
     print(f"[chatbot/gemini_client] שגיאה ב-{where}: {error!r}", file=sys.stderr)   # שורת סיכום קצרה
     traceback.print_exc(file=sys.stderr)                                              # ה-traceback המלא
 
-from google import genai            # ה-SDK הרשמי של Google ל-Gemini API
-from google.genai import types      # טיפוסי ההגדרות (GenerateContentConfig וכו') של ה-SDK
 
-_client = None   # מופע יחיד (singleton) של הלקוח, כדי לא ליצור חיבור חדש בכל קריאה
+def _is_transient(error):
+    """מחליט האם שגיאה היא זמנית (כדאי לנסות שוב) או קבועה (אין טעם לנסות שוב)."""
+    error_text = f"{type(error).__name__} {error}"                       # שם סוג השגיאה + הטקסט שלה
+    return any(marker in error_text for marker in _TRANSIENT_ERROR_MARKERS)  # האם מופיע סימן לשגיאה זמנית
+
+
+def _is_quota_exhausted(error):
+    """מזהה שגיאת מכסה (429). חשוב להבדיל אותה מעומס רגעי: אם המכסה *היומית* של מודל מסוים
+    נגמרה, אין שום טעם לנסות שוב את אותו מודל - צריך לעבור למודל הבא בשרשרת."""
+    error_text = f"{type(error).__name__} {error}"
+    return "RESOURCE_EXHAUSTED" in error_text or "429" in error_text
+
+
+def _call_with_retry(where, api_call):
+    """מריץ קריאת API, עם שתי רמות של עמידות בפני תקלות:
+      1. ניסיון חוזר על אותו מודל, אם השגיאה זמנית (עומס רגעי) - עם המתנה מתארכת.
+      2. מעבר אוטומטי למודל הבא ברשימת config.GEMINI_MODELS, אם המודל הנוכחי אינו זמין או
+         שהמכסה החינמית שלו נוצלה במלואה.
+    מחזיר את תוצאת הקריאה מהמודל הראשון שהצליח, או None אם כל המודלים נכשלו (ואז הקוד הקורא
+    מציג הודעה עדינה למשתמש/ת במקום לקרוס).
+
+    שתי הרמות האלה נוספו אחרי שבבדיקות אמיתיות התגלו שתי תקלות: עומס זמני (503) שהשבית את
+    הבוט לגמרי, ומכסה יומית קטנה מאוד במודלים החדשים (20 בקשות ליום) שהייתה משביתה את האתר
+    החי אחרי כמה שיחות בלבד."""
+    api_call_failed_with = None                                       # השגיאה האחרונה שנרשמה, לדיווח בסוף
+
+    for model_name in config.GEMINI_MODELS:                           # מעבר על שרשרת המודלים, לפי סדר עדיפות
+        for attempt in range(1, _MAX_RETRIES + 1):                       # ניסיון ראשון + ניסיונות חוזרים
+            try:
+                return api_call(model_name)                                 # הקריאה עצמה, עם המודל הנוכחי
+            except Exception as error:                                     # כל שגיאה שהיא
+                api_call_failed_with = error                                  # שמירת השגיאה לדיווח
+                if _is_quota_exhausted(error):                                  # מכסה נוצלה - אין טעם לנסות שוב כאן
+                    print(f"[chatbot/gemini_client] המכסה של המודל {model_name} נוצלה, "
+                          f"עוברים למודל הבא ברשימה...", file=sys.stderr)
+                    break                                                        # יציאה מלולאת הניסיונות, למודל הבא
+                if attempt < _MAX_RETRIES and _is_transient(error):              # עומס זמני - כדאי לנסות שוב
+                    delay = _RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))       # המתנה מתארכת: 1, 2, 4 שניות
+                    print(f"[chatbot/gemini_client] שגיאה זמנית ב-{where} במודל {model_name} "
+                          f"(ניסיון {attempt}), מנסה שוב בעוד {delay} שניות...", file=sys.stderr)
+                    time.sleep(delay)                                             # המתנה לפני הניסיון הבא
+                    continue                                                        # ניסיון נוסף באותו מודל
+                break                                                          # שגיאה קבועה - מעבר למודל הבא
+
+    _log_error(where, api_call_failed_with)   # כל המודלים נכשלו - רישום השגיאה האחרונה ל-log של השרת
+    return None                                  # הקוד הקורא יטפל בעדינות ויציג הודעה ידידותית
 
 
 def _get_client():
@@ -46,10 +111,11 @@ def extract_json(system_instruction, user_message, response_schema):
     אך ורק JSON שתואם את הסכמה שהתקבלה, ולא טקסט חופשי. מחזירה dict מפוענח בהצלחה, או None אם
     הייתה שגיאה כלשהי (ברשת, במכסה, או JSON לא תקין) - כדי שהקוד הקורא יוכל להגיב בעדינות
     (לבקש מהמשתמש לנסח מחדש) במקום לקרוס. לא מבצעת ניסיון חוזר אוטומטי - כדי לא לכפול קריאות API."""
-    try:
+    def do_call(model_name):
+        """הקריאה עצמה - מקבלת את שם המודל, כדי ש-_call_with_retry יוכל לנסות מודלים שונים."""
         client = _get_client()                                          # קבלת הלקוח (או יצירתו אם עוד לא נוצר)
-        response = client.models.generate_content(                        # קריאת ה-API היחידה של הפונקציה הזו
-            model=config.GEMINI_MODEL_NAME,
+        response = client.models.generate_content(                        # קריאת ה-API של הפונקציה הזו
+            model=model_name,
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,                       # הוראת המערכת הקשיחה (מוגדרת בקובץ הקורא)
@@ -59,19 +125,19 @@ def extract_json(system_instruction, user_message, response_schema):
             ),
         )
         return json.loads(response.text)                                    # פענוח הטקסט שחזר לאובייקט פייתון (dict)
-    except Exception as error:                                             # כל שגיאה (רשת/מכסה/JSON לא תקין/מפתח שגוי וכו')
-        _log_error("extract_json", error)                                     # רישום השגיאה המלאה ל-log של השרת
-        return None                                                          # מחזירים None - הקוד הקורא יטפל בעדינות
+
+    return _call_with_retry("extract_json", do_call)   # הרצה עם ניסיונות חוזרים ומעבר בין מודלים לפי הצורך
 
 
 def generate_text(system_instruction, user_message):
     """קריאת API אחת ל-Gemini לניסוח תשובה טבעית בעברית (לא JSON) - משמשת רק לניסוח התשובה
     הסופית עם הפער בין התאריך שהלקוח/ה טען/ה לבין התאריך האמיתי, אחרי שכבר יש בידינו את כל
     הנתונים האמיתיים. מחזירה מחרוזת טקסט, או None אם הייתה שגיאה."""
-    try:
+    def do_call(model_name):
+        """הקריאה עצמה - מקבלת את שם המודל, כדי ש-_call_with_retry יוכל לנסות מודלים שונים."""
         client = _get_client()                                          # קבלת הלקוח (או יצירתו אם עוד לא נוצר)
-        response = client.models.generate_content(                        # קריאת ה-API היחידה של הפונקציה הזו
-            model=config.GEMINI_MODEL_NAME,
+        response = client.models.generate_content(                        # קריאת ה-API של הפונקציה הזו
+            model=model_name,
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,                       # הוראת המערכת (מוגדרת בקובץ הקורא)
@@ -79,6 +145,5 @@ def generate_text(system_instruction, user_message):
             ),
         )
         return response.text.strip()                                        # החזרת הטקסט שחזר, בלי רווחים מיותרים בקצוות
-    except Exception as error:                                             # כל שגיאה (רשת/מכסה/מפתח שגוי וכו')
-        _log_error("generate_text", error)                                     # רישום השגיאה המלאה ל-log של השרת
-        return None                                                          # מחזירים None - הקוד הקורא יטפל בעדינות
+
+    return _call_with_retry("generate_text", do_call)   # הרצה עם ניסיונות חוזרים ומעבר בין מודלים לפי הצורך
