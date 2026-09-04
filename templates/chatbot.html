@@ -1,0 +1,39 @@
+{# chatbot.html - מסך הצ'אטבוט ללקוחות: תמלול השיחה עד כה, טופס לשליחת הודעה חדשה, וכפתור לאיפוס השיחה #}
+{% extends "base.html" %}
+
+{% block title %}צ'אט עם הבוט{% endblock %}
+
+{% block content %}
+<h1>צ'אט - בדיקת התור שלי</h1>  {# כותרת ראשית #}
+
+<div class="card">  {# כרטיס הסבר קצר על השימוש בבוט #}
+    <p>אפשר לכתוב בשפה חופשית, למשל: <em>"קוראים לי דנה ויש לי תור ב-15.03.2027"</em>.
+    לפני שהבוט חושף כל פרט על התור, הוא יבקש לאמת את זהותך עם תעודת זהות.</p>
+</div>
+
+<div class="card">  {# כרטיס תמלול השיחה #}
+    <div class="chat-history">  {# אזור הצגת כל הודעות השיחה עד כה #}
+        {% if history|length == 0 %}  {# אם השיחה עדיין לא התחילה #}
+            <p>השיחה עדיין ריקה - אפשר לכתוב הודעה ראשונה למטה כדי להתחיל.</p>
+        {% endif %}
+        {% for message in history %}  {# מעבר על כל הודעה בתמלול, לפי סדר הופעתה #}
+            <div class="chat-message chat-message-{{ message.role }}">  {# מחלקת CSS שונה למשתמש/בוט #}
+                <span class="chat-message-label">{{ "את/ה" if message.role == "user" else "בוט" }}:</span>
+                <span class="chat-message-text">{{ message.text }}</span>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">  {# כרטיס טופס שליחת הודעה חדשה #}
+    <form method="POST" action="{{ url_for('chatbot.send_message') }}">  {# טופס שליחת הודעה #}
+        <label for="message">ההודעה שלך</label>  {# תווית לשדה ההודעה #}
+        <input type="text" id="message" name="message" placeholder="לדוגמה: קוראים לי דנה ויש לי תור ב-15.03.2027" required autofocus>
+        <button type="submit">שליחה</button>  {# כפתור שליחת ההודעה #}
+    </form>
+
+    <form class="inline-form" method="POST" action="{{ url_for('chatbot.reset_conversation') }}">  {# טופס איפוס השיחה #}
+        <button type="submit" class="btn-danger">שיחה חדשה</button>  {# כפתור להתחלת שיחה מאפס #}
+    </form>
+</div>
+{% endblock %}

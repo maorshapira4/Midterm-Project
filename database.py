@@ -28,10 +28,25 @@ def get_connection():
 
 
 def init_db():
-    """יוצר את כל הטבלאות הנדרשות אם הן עדיין לא קיימות, לפי התוכן של schema.sql."""
+    """יוצר את כל הטבלאות הנדרשות אם הן עדיין לא קיימות, לפי התוכן של schema.sql, ומריץ מיגרציות
+    קטנות עבור בסיסי נתונים ישנים יותר שכבר קיימים מריצה קודמת של הפרויקט."""
     connection = get_connection()                                       # פתיחת חיבור לבסיס הנתונים
     with open(SCHEMA_PATH, "r", encoding="utf-8") as schema_file:        # פתיחת קובץ הסכמה לקריאה בקידוד UTF-8 (בגלל עברית)
         schema_sql = schema_file.read()                                   # קריאת כל תוכן קובץ ה-SQL כמחרוזת אחת
     connection.executescript(schema_sql)                                   # הרצת כל פקודות ה-CREATE TABLE שבקובץ בבת אחת
     connection.commit()                                                     # שמירת השינויים בפועל לקובץ בסיס הנתונים
+    _migrate_add_missing_columns(connection)                                  # השלמת עמודות חדשות בבסיס נתונים ישן, אם צריך
     connection.close()                                                       # סגירת החיבור לאחר סיום יצירת הטבלאות
+
+
+def _migrate_add_missing_columns(connection):
+    """מיגרציה קלה: משלימה עמודות שנוספו לסכמה בגרסאות מאוחרות יותר של הפרויקט, במקרה שבסיס
+    הנתונים כבר קיים מריצה קודמת ונוצר לפני שהעמודה נוספה ל-schema.sql (למשל בסיס נתונים ישן
+    שכבר רץ על שרת חי). "CREATE TABLE IF NOT EXISTS" לא מוסיף עמודות לטבלה שכבר קיימת - ולכן
+    צריך את הבדיקה הידנית הזו כדי שהעדכון יעבוד גם על בסיסי נתונים קיימים, לא רק על חדשים."""
+    existing_columns = {                                                          # שמות כל העמודות הקיימות כרגע בטבלת customers
+        row["name"] for row in connection.execute("PRAGMA table_info(customers)").fetchall()
+    }
+    if "id_number" not in existing_columns:                                         # אם העמודה עדיין לא קיימת בפועל
+        connection.execute("ALTER TABLE customers ADD COLUMN id_number TEXT")          # הוספתה כעת, כעמודה ריקה לרשומות קיימות
+        connection.commit()                                                              # שמירת שינוי המבנה בפועל

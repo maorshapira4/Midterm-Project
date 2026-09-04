@@ -266,6 +266,37 @@ button:hover, .btn:hover {
     background-color: #f8ecef;                        /* רקע ורוד עדין לכרטיס שירות שסומן */
 }
 
+.chat-history {
+    display: flex;                  /* פריסת הודעות השיחה זו מתחת לזו */
+    flex-direction: column;            /* כיוון אנכי, מהישנה ביותר לחדשה ביותר */
+    gap: 10px;                            /* רווח בין הודעות */
+    max-height: 420px;                       /* גובה מקסימלי, כדי שהעמוד לא יתארך יתר על המידה */
+    overflow-y: auto;                           /* גלילה אנכית כשיש הרבה הודעות */
+}
+
+.chat-message {
+    padding: 8px 14px;                 /* ריווח פנימי לתוך "בועת" ההודעה */
+    border-radius: 12px;                  /* פינות מעוגלות, נראה כמו בועת צ'אט */
+    max-width: 80%;                          /* הודעה לא תופסת את כל הרוחב, כמו באפליקציות צ'אט */
+}
+
+.chat-message-user {
+    align-self: flex-end;                          /* הודעות המשתמש/ת מיושרות לצד "שלנו" */
+    background-color: var(--color-primary);           /* רקע ורוד, כמו כפתורים */
+    color: white;                                         /* טקסט לבן על גבי הרקע הצבעוני */
+}
+
+.chat-message-bot {
+    align-self: flex-start;                         /* הודעות הבוט מיושרות לצד השני */
+    background-color: var(--color-bg);                 /* רקע קרם בהיר, כמו רקע הדף */
+    border: 1px solid var(--color-border);                /* גבול עדין להבחנה מרקע הדף */
+}
+
+.chat-message-label {
+    font-weight: bold;         /* הדגשת התווית ("את/ה" / "בוט") */
+    margin-inline-end: 6px;       /* רווח קטן בין התווית לתוכן ההודעה */
+}
+
 .selection-summary {
     background-color: #f8ecef;              /* רקע ורוד עדין, מבליט את סיכום הבחירה */
     border: 1px solid var(--color-primary);    /* גבול ורוד סביב הסיכום */

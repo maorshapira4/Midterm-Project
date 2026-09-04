@@ -14,6 +14,7 @@
             <nav class="nav-links">  <!-- תפריט הניווט הראשי -->
                 <a href="{{ url_for('booking.show_booking_page') }}">קביעת תור</a>  <!-- מעבר למסך הזמנת תור -->
                 <a href="{{ url_for('booking.my_appointments') }}">התורים שלי</a>  <!-- מעבר למסך תורים אישי -->
+                <a href="{{ url_for('chatbot.show_chatbot_page') }}">צ'אט עם הבוט</a>  <!-- מעבר לצ'אטבוט בדיקת תור -->
                 <span class="nav-divider">|</span>  <!-- קו מפריד ויזואלי בין אזור הלקוח לאזור הניהול -->
                 {% if session.get('is_admin') %}  <!-- מציגים את קישורי הניהול רק למי שכבר הזין/ה סיסמה נכונה -->
                     <a href="{{ url_for('dashboard.show_dashboard') }}">דשבורד</a>  <!-- מעבר ללוח המחוונים -->

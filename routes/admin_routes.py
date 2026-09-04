@@ -114,8 +114,9 @@ def add_customer():
     phone = request.form.get("phone")               # טלפון הלקוח מהטופס
     email = request.form.get("email") or None          # אימייל הלקוח מהטופס (אופציונלי)
     address = request.form.get("address") or None         # כתובת הלקוח מהטופס (אופציונלי)
+    id_number = request.form.get("id_number") or None        # תעודת זהות מהטופס (אופציונלי, לצורך אימות בצ'אטבוט)
     try:
-        customers.add_customer(full_name, phone, email, address)  # ניסיון להוסיף את הלקוח
+        customers.add_customer(full_name, phone, email, address, id_number)  # ניסיון להוסיף את הלקוח
         flash("הלקוח נוסף בהצלחה")                                    # הודעת הצלחה
     except ValueError as error:                                        # תפיסת שגיאת ולידציה
         flash(str(error))                                                # הצגת השגיאה למשתמש

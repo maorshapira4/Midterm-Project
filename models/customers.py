@@ -11,14 +11,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 
 import database  # קובץ הגישה לבסיס הנתונים
 
 
-def add_customer(full_name, phone, email=None, address=None):
-    """מוסיף לקוח חדש לבסיס הנתונים, לאחר בדיקת תקינות בסיסית. מחזיר את מזהה הלקוח החדש."""
+def add_customer(full_name, phone, email=None, address=None, id_number=None):
+    """מוסיף לקוח חדש לבסיס הנתונים, לאחר בדיקת תקינות בסיסית. מחזיר את מזהה הלקוח החדש.
+    id_number (תעודת זהות) הוא אופציונלי, אך נדרש כדי שהלקוח יוכל לעבור אימות בצ'אטבוט."""
     if not full_name or not phone:                          # ולידציה: שם וטלפון הם שדות חובה ללקוח
         raise ValueError("חובה לספק שם מלא וטלפון עבור הלקוח")  # שגיאה ברורה שתוצג למשתמש
     connection = database.get_connection()                    # פתיחת חיבור לבסיס הנתונים
     cursor = connection.execute(                                 # הכנסת רשומת הלקוח החדש לטבלה
-        "INSERT INTO customers (full_name, phone, email, address) VALUES (?, ?, ?, ?)",
-        (full_name, phone, email, address)
+        "INSERT INTO customers (full_name, phone, email, address, id_number) VALUES (?, ?, ?, ?, ?)",
+        (full_name, phone, email, address, id_number)
     )
     connection.commit()                                            # שמירת הלקוח החדש בפועל
     new_id = cursor.lastrowid                                        # שליפת המזהה שקיבל הלקוח החדש
@@ -42,6 +43,18 @@ def get_customer(customer_id):
     ).fetchone()
     connection.close()                                              # סגירת החיבור
     return dict(row) if row else None                                # החזרת מילון אם נמצא, אחרת None
+
+
+def search_customers_by_name(partial_name):
+    """מחפש לקוחות לפי שם חלקי (למשל שם פרטי בלבד), לצורך זיהוי ראשוני בצ'אטבוט. מחזיר רשימה -
+    יכולה להכיל אפס, לקוח אחד, או כמה לקוחות תואמים (למשל כמה לקוחות בשם "רותם")."""
+    connection = database.get_connection()                       # פתיחת חיבור לבסיס הנתונים
+    like_pattern = f"%{partial_name.strip()}%"                      # תבנית חיפוש: השם החלקי יכול להופיע בכל מקום בשם המלא
+    rows = connection.execute(                                       # חיפוש כל הלקוחות שהשם המלא שלהם מכיל את השם החלקי
+        "SELECT * FROM customers WHERE full_name LIKE ? ORDER BY full_name", (like_pattern,)
+    ).fetchall()
+    connection.close()                                              # סגירת החיבור
+    return [dict(row) for row in rows]                                # המרת התוצאות לרשימת מילונים
 
 
 def find_customer_by_phone(phone):

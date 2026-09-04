@@ -6,16 +6,23 @@ app.py - נקודת הכניסה הראשית של האפליקציה.
 
 from datetime import timedelta               # לחישוב משך תפוגת סשן המנהל/ת (חוסר פעילות)
 
+from dotenv import load_dotenv   # טעינת משתני סביבה מקובץ .env מקומי (כמו GEMINI_API_KEY)
+load_dotenv()                       # חייב לרוץ *לפני* import config, כי config קורא את המשתנים האלה מיד בזמן הייבוא.
+# הערה: אם קובץ .env לא קיים בכלל (למשל על שרת שבו הוגדר משתנה סביבה אמיתי, כמו PythonAnywhere) -
+# הפונקציה הזו פשוט לא עושה כלום ולא זורקת שגיאה, אז זה בטוח להשאיר אותה תמיד.
+
 from flask import Flask, render_template   # מחלקת האפליקציה הראשית של Flask, וכלי הצגת תבניות
 
 import config       # קובץ ההגדרות הכלליות של הפרויקט
 import database      # שכבת הגישה לבסיס הנתונים, ליצירת הטבלאות
 import seed_services   # סקריפט הזנת רשימת השירותים הקבועה
+import seed_demo_data  # סקריפט הזנת דאטת דמו ללקוחות/תורים/לידים, לצורך הדגמת הצ'אטבוט
 
 from routes.booking_routes import booking_bp     # מסכי הלקוח (הזמנה, ביטול)
 from routes.admin_routes import admin_bp           # מסכי הניהול (תורים, לקוחות, לידים, חשבוניות)
 from routes.dashboard_routes import dashboard_bp     # מסך לוח המחוונים
 from routes.auth_routes import auth_bp                 # מסכי ההתחברות וההתנתקות של המנהל/ת
+from routes.chatbot_routes import chatbot_bp             # מסך הצ'אטבוט ללקוחות (פרויקט הסיום)
 
 
 def create_app():
@@ -32,6 +39,7 @@ def create_app():
     app.register_blueprint(admin_bp)                 # חיבור מסכי הניהול לאפליקציה
     app.register_blueprint(dashboard_bp)               # חיבור מסך הדשבורד לאפליקציה
     app.register_blueprint(auth_bp)                      # חיבור מסכי ההתחברות וההתנתקות לאפליקציה
+    app.register_blueprint(chatbot_bp)                     # חיבור מסך הצ'אטבוט ללקוחות (פרויקט הסיום)
 
     @app.route("/")                                       # הגדרת עמוד הבית של האתר
     def home_page():
@@ -54,7 +62,8 @@ def create_app():
 
 database.init_db()             # יצירת כל הטבלאות בבסיס הנתונים, אם הן עדיין לא קיימות - תמיד, גם בייבוא
 seed_services.seed_services()    # הזנת רשימת השירותים הקבועה, אם היא עדיין לא קיימת - תמיד, גם בייבוא
-# שתי השורות למעלה רצות תמיד (לא רק תחת __main__), כדי שגם שרת אינטרנט חיצוני שרק "מייבא" את app
+seed_demo_data.seed_demo_data()   # הזנת דאטת דמו (לקוחות/תורים/לידים) לצורך בדיקת הצ'אטבוט, אם היא עדיין לא קיימת
+# שלוש השורות למעלה רצות תמיד (לא רק תחת __main__), כדי שגם שרת אינטרנט חיצוני שרק "מייבא" את app
 # (כמו PythonAnywhere, שלא מריץ python app.py בעצמו) יקבל בסיס נתונים מוכן ותקין
 
 app = create_app()   # יצירת מופע האפליקציה ברמת המודול, כדי ש-Flask יוכל למצוא אותו בקלות בעת ההרצה

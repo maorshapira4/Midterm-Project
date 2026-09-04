@@ -9,8 +9,12 @@ CREATE TABLE IF NOT EXISTS customers (
     phone TEXT NOT NULL,                                  -- מספר טלפון של הלקוח (שדה חובה)
     email TEXT,                                           -- כתובת אימייל (אופציונלי)
     address TEXT,                                         -- כתובת מגורים (אופציונלי)
+    id_number TEXT,                                       -- תעודת זהות (אופציונלי) - משמשת לאימות זהות בצ'אטבוט
     created_at TEXT NOT NULL DEFAULT (datetime('now'))    -- תאריך ושעת יצירת הרשומה, נקבע אוטומטית
 );
+-- הערה: אם בסיס הנתונים שלך כבר קיים מריצה קודמת של הפרויקט (מלפני שנוספה עמודת id_number),
+-- CREATE TABLE IF NOT EXISTS לא יוסיף את העמודה החדשה לטבלה קיימת - database.py מטפל בזה
+-- אוטומטית עם מיגרציה קטנה (_migrate_add_missing_columns), כך שגם בסיס נתונים ישן יתעדכן לבד.
 
 -- טבלת שירותים: כל סוגי הטיפולים שהקליניקה מציעה, עם משך ומחיר ברירת מחדל
 CREATE TABLE IF NOT EXISTS services (

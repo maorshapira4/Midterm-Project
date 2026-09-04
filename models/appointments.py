@@ -162,6 +162,28 @@ def delete_appointment(appointment_id):
     connection.close()                                                # סגירת החיבור
 
 
+def get_next_upcoming_appointment(customer_id):
+    """מחזיר את התור העתידי הקרוב ביותר (שממתין, ולא עבר) של לקוח מסוים, או None אם אין לו כזה.
+    משמש בעיקר את הצ'אטבוט: אחרי אימות זהות, זה התור ה'אמיתי' שמדווחים עליו ללקוח."""
+    import datetime                                                    # ייבוא מקומי לעבודה עם תאריך היום
+    today = datetime.date.today().isoformat()                            # תאריך היום, לסינון תורים עתידיים בלבד
+    connection = database.get_connection()                                 # פתיחת חיבור לבסיס הנתונים
+    row = connection.execute(                                               # שליפת התור הקרוב ביותר, כולל שמות השירותים
+        "SELECT appointments.*, GROUP_CONCAT(services.name, ', ') AS service_names "
+        "FROM appointments "
+        "LEFT JOIN appointment_services ON appointment_services.appointment_id = appointments.id "
+        "LEFT JOIN services ON appointment_services.service_id = services.id "
+        "WHERE appointments.customer_id = ? AND appointments.status = 'ממתין' "
+        "AND appointments.appointment_date >= ? "
+        "GROUP BY appointments.id "
+        "ORDER BY appointments.appointment_date ASC, appointments.appointment_time ASC "
+        "LIMIT 1",
+        (customer_id, today)
+    ).fetchone()
+    connection.close()                                                       # סגירת החיבור
+    return dict(row) if row else None                                          # החזרת מילון אם נמצא תור, אחרת None
+
+
 def list_services():
     """מחזיר את רשימת כל השירותים הקיימים בטבלת services (למשל עבור תפריט בחירה בטופס)."""
     connection = database.get_connection()                # פתיחת חיבור לבסיס הנתונים
