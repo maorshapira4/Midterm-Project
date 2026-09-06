@@ -205,6 +205,13 @@ def _public_answer(intent):
 
 def _handle_start(state, user_message):
     """שלב הזיהוי הראשוני: קריאה ל-NLU (Gemini) לחילוץ כוונה/שם/תאריך/ת.ז., ואז ניתוב מתאים."""
+    # מסלול מהיר: אם ההודעה כולה ספרות (למשל "345678901"), ברור לגמרי שזו תעודת זהות ואין שום
+    # דבר לחלץ ממנה. במקרה כזה מדלגים לחלוטין על הקריאה ל-Gemini - התשובה חוזרת מיידית, ובנוסף
+    # נחסכת קריאת API מהמכסה החינמית. זו אינה "קיצור דרך על חשבון איכות": אין כאן שפה להבין.
+    stripped = user_message.strip()
+    if stripped.isdigit() and len(stripped) >= 5:
+        return _verify_with_id_number(state, stripped)
+
     extracted = nlu.extract(user_message)                              # קריאת ה-API היחידה בשלב הזה
     if extracted is None:                                                 # אם החילוץ נכשל (שגיאת רשת/JSON לא תקין)
         return ("מצטערים, לא הצלחתי להבין את ההודעה כרגע. אפשר לנסח מחדש? "

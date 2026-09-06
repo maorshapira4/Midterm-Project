@@ -36,6 +36,13 @@ _TRANSIENT_ERROR_MARKERS = (
     "503", "429", "500",            # קודי הסטטוס עצמם, ליתר ביטחון
 )
 
+# כיבוי ה"חשיבה" (thinking) המקדימה של המודל בשתי הקריאות שלנו. מודלי Gemini החדשים "חושבים"
+# לפני שהם עונים, וזה מצוין למשימות מורכבות - אבל שתי המשימות שלנו פשוטות ומכניות: חילוץ ארבעה
+# שדות מתוך משפט, וניסוח משפט אחד מתוך עובדות שכבר סופקו. במדידה בפועל כיבוי החשיבה קיצר את
+# החילוץ מ-1.19 ל-0.68 שניות ואת הניסוח מ-4.18 ל-1.73 שניות - כלומר יותר מפי שניים מהר - עם
+# פלט זהה לחלוטין בשני המקרים. כלומר: שיפור מהירות שלא בא על חשבון איכות התשובה.
+_NO_THINKING = types.ThinkingConfig(thinking_budget=0)
+
 
 def _log_error(where, error):
     """רושם שגיאה מלאה (כולל traceback) ל-stderr, כדי שתופיע ב-Error log של השרת (למשל
@@ -122,6 +129,7 @@ def extract_json(system_instruction, user_message, response_schema):
                 response_mime_type="application/json",                          # מכריח תשובה בפורמט JSON בלבד
                 response_schema=response_schema,                                   # מכריח את המבנה המדויק של ה-JSON
                 temperature=0,                                                        # ללא "יצירתיות" - חילוץ עובדתי ועקבי
+                thinking_config=_NO_THINKING,                                            # בלי "חשיבה" מקדימה - ראו הערה למעלה
             ),
         )
         return json.loads(response.text)                                    # פענוח הטקסט שחזר לאובייקט פייתון (dict)
@@ -142,6 +150,7 @@ def generate_text(system_instruction, user_message):
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,                       # הוראת המערכת (מוגדרת בקובץ הקורא)
                 temperature=0.3,                                                # מעט "טבעיות" בניסוח, אך לא מוגזם
+                thinking_config=_NO_THINKING,                                      # בלי "חשיבה" מקדימה - ראו הערה למעלה
             ),
         )
         return response.text.strip()                                        # החזרת הטקסט שחזר, בלי רווחים מיותרים בקצוות

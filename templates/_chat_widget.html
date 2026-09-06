@@ -1,0 +1,168 @@
+{# _chat_widget.html - "בועת הצ'אט" הצפה שמופיעה בפינת המסך בכל דפי האתר (נכללת מתוך base.html).
+   המטרה: שלקוח/ה יוכל/תוכל לדבר עם הבוט מכל מקום באתר - ובעיקר מדף הבית - בלי לנווט בכלל
+   דרך התפריט העליון. השיחה כאן מיידית: ההודעה נשלחת ברקע (fetch) והתשובה מתווספת לחלון בלי
+   שהעמוד נטען מחדש, בניגוד לעמוד הצ'אט המלא שמרענן את כל הדף בכל הודעה. #}
+
+<div class="chat-widget" id="chatWidget">  {# העוטף של כל הרכיב הצף #}
+
+    <div class="chat-widget-panel" id="chatWidgetPanel" hidden>  {# חלון השיחה עצמו, מוסתר עד ללחיצה #}
+        <div class="chat-widget-header">  {# כותרת החלון: שם, כפתור שיחה חדשה, כפתור סגירה #}
+            <span class="chat-widget-title">העוזר/ת של הקליניקה</span>
+            <span class="chat-widget-header-actions">
+                <button type="button" class="chat-widget-icon-btn" id="chatWidgetReset"
+                        title="שיחה חדשה" aria-label="שיחה חדשה">⟳</button>  {# איפוס השיחה #}
+                <button type="button" class="chat-widget-icon-btn" id="chatWidgetClose"
+                        title="סגירה" aria-label="סגירה">✕</button>  {# סגירת החלון #}
+            </span>
+        </div>
+
+        <div class="chat-widget-messages" id="chatWidgetMessages">  {# אזור ההודעות - הוא זה שגולל #}
+            {# ההודעות עצמן מוזרקות על ידי הסקריפט למטה, מתוך תמלול השיחה השמור ב-session #}
+        </div>
+
+        <form class="chat-widget-composer" id="chatWidgetForm">  {# תיבת הכתיבה, קבועה בתחתית החלון #}
+            <input type="text" id="chatWidgetInput" class="chat-widget-input"
+                   placeholder="במה אפשר לעזור?" autocomplete="off" required>
+            <button type="submit" class="chat-widget-send" aria-label="שליחה">➤</button>
+        </form>
+    </div>
+
+    <button type="button" class="chat-widget-launcher" id="chatWidgetLauncher"
+            aria-label="פתיחת צ'אט עם העוזר/ת של הקליניקה">
+        <span class="chat-widget-launcher-icon">💬</span>  {# האייקון של הבועה הסגורה #}
+        <span class="chat-widget-launcher-text">אפשר לעזור?</span>
+    </button>
+</div>
+
+<script>
+(function initChatWidget() {
+    "use strict";
+
+    // ---- איתור כל האלמנטים שהסקריפט עובד איתם ----
+    var panel     = document.getElementById("chatWidgetPanel");     // חלון השיחה
+    var launcher  = document.getElementById("chatWidgetLauncher");    // כפתור הבועה הסגורה
+    var closeBtn  = document.getElementById("chatWidgetClose");         // כפתור הסגירה
+    var resetBtn  = document.getElementById("chatWidgetReset");           // כפתור "שיחה חדשה"
+    var messages  = document.getElementById("chatWidgetMessages");         // אזור ההודעות
+    var form      = document.getElementById("chatWidgetForm");               // טופס הכתיבה
+    var input     = document.getElementById("chatWidgetInput");                // שדה ההודעה
+
+    // תמלול השיחה הקיים, כפי שהוא שמור כרגע ב-session בשרת - כדי שהשיחה תימשך בין עמודים
+    var initialHistory = {{ session.get("chatbot_state", {}).get("history", []) | tojson }};
+
+    var STORAGE_KEY = "clinicChatWidgetOpen";   // זוכר בדפדפן אם החלון היה פתוח, בין מעברי עמודים
+    var isSending = false;                         // מונע שליחה כפולה בזמן שממתינים לתשובה
+
+    // ---- בניית בועת הודעה בודדת ----
+    function addMessage(role, text) {
+        var bubble = document.createElement("div");                    // האלמנט של ההודעה
+        bubble.className = "chat-widget-message chat-widget-message-" + role;
+        bubble.textContent = text;   // textContent (ולא innerHTML) - כך שטקסט מהמשתמש לעולם לא יורץ כקוד
+        messages.appendChild(bubble);                                     // הוספה לסוף השיחה
+        scrollToBottom();                                                    // וגלילה אליה
+        return bubble;
+    }
+
+    // ---- גלילה לתחתית אזור ההודעות ----
+    function scrollToBottom() {
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ---- מחוון "מקליד/ה..." שמוצג בזמן ההמתנה לתשובה ----
+    function showTyping() {
+        var typing = document.createElement("div");
+        typing.className = "chat-widget-message chat-widget-message-bot chat-widget-typing";
+        typing.id = "chatWidgetTyping";
+        typing.innerHTML = "<span></span><span></span><span></span>";   // שלוש נקודות מונפשות
+        messages.appendChild(typing);
+        scrollToBottom();
+    }
+
+    function hideTyping() {
+        var typing = document.getElementById("chatWidgetTyping");
+        if (typing) { typing.remove(); }
+    }
+
+    // ---- הודעת הפתיחה, כשהשיחה עדיין ריקה ----
+    function showWelcome() {
+        addMessage("bot", "שלום! אפשר לשאול אותי מתי התור שלך, כמה עולה טיפול, או מתי אנחנו פתוחים. " +
+                          "לפני שאמסור פרטים על תור אבקש לאמת את זהותך.");
+    }
+
+    // ---- פתיחה וסגירה של החלון ----
+    function openPanel() {
+        panel.hidden = false;                                    // הצגת החלון
+        launcher.classList.add("chat-widget-launcher-hidden");     // הסתרת הבועה הסגורה
+        try { localStorage.setItem(STORAGE_KEY, "1"); } catch (e) {}  // זכירת המצב (אם הדפדפן מרשה)
+        scrollToBottom();
+        input.focus();                                                // מיקוד מיידי בשדה הכתיבה
+    }
+
+    function closePanel() {
+        panel.hidden = true;                                       // הסתרת החלון
+        launcher.classList.remove("chat-widget-launcher-hidden");     // החזרת הבועה הסגורה
+        try { localStorage.setItem(STORAGE_KEY, "0"); } catch (e) {}
+    }
+
+    // ---- שליחת הודעה לשרת וקבלת התשובה, בלי טעינה מחדש של העמוד ----
+    function sendMessage(text) {
+        if (isSending) { return; }     // כבר ממתינים לתשובה - לא שולחים שוב
+        isSending = true;
+        addMessage("user", text);         // הצגת ההודעה של המשתמש/ת מיד, בלי להמתין לשרת
+        showTyping();                       // ומיד אחריה מחוון ההמתנה
+
+        fetch("{{ url_for('chatbot.api_send_message') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: text })
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            hideTyping();                                    // הסרת מחוון ההמתנה
+            addMessage("bot", data.reply);                     // והצגת התשובה שחזרה מהשרת
+        })
+        .catch(function () {
+            hideTyping();
+            addMessage("bot", "מצטערים, משהו השתבש בחיבור. אפשר לנסות שוב?");   // תקלת רשת
+        })
+        .then(function () {
+            isSending = false;      // בכל מקרה - משחררים את הנעילה ומחזירים את המיקוד לשדה
+            input.focus();
+        });
+    }
+
+    // ---- חיווט האירועים ----
+    launcher.addEventListener("click", openPanel);      // לחיצה על הבועה פותחת את החלון
+    closeBtn.addEventListener("click", closePanel);        // לחיצה על X סוגרת אותו
+
+    resetBtn.addEventListener("click", function () {       // "שיחה חדשה": מנקה גם בשרת וגם במסך
+        fetch("{{ url_for('chatbot.api_reset_conversation') }}", { method: "POST" })
+            .then(function () {
+                messages.innerHTML = "";    // ניקוי המסך
+                showWelcome();                 // והצגת הודעת הפתיחה מחדש
+                input.focus();
+            });
+    });
+
+    form.addEventListener("submit", function (event) {    // שליחה בלחיצה על הכפתור או ב-Enter
+        event.preventDefault();                              // מניעת טעינה מחדש של העמוד
+        var text = input.value.trim();
+        if (!text) { return; }                                  // הודעה ריקה - לא שולחים
+        input.value = "";                                          // ניקוי השדה מיד, להרגשה מהירה
+        sendMessage(text);
+    });
+
+    // ---- אתחול: טעינת התמלול הקיים, ופתיחת החלון אם הוא היה פתוח קודם ----
+    if (initialHistory.length > 0) {
+        initialHistory.forEach(function (message) {      // שחזור השיחה שכבר התנהלה
+            addMessage(message.role, message.text);
+        });
+    } else {
+        showWelcome();                                    // שיחה חדשה - הודעת פתיחה
+    }
+
+    var wasOpen = "0";
+    try { wasOpen = localStorage.getItem(STORAGE_KEY) || "0"; } catch (e) {}  // הדפדפן עשוי לחסום
+    if (wasOpen === "1") { openPanel(); }    // אם החלון היה פתוח לפני מעבר העמוד - נפתח אותו שוב
+})();
+</script>

@@ -5,7 +5,7 @@ routes/chatbot_routes.py - מסך הצ'אטבוט ללקוחות: זיהוי ל�
 להודעה בתוך ה-session של הדפדפן (Flask session), כדי שכל לקוח/ה ינהל/תנהל שיחה נפרדת משלו/ה.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, session   # כלי Flask הדרושים
+from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify   # כלי Flask הדרושים
 
 import chatbot.conversation as conversation   # מוח הצ'אטבוט - מכונת המצבים של השיחה
 
@@ -50,3 +50,33 @@ def reset_conversation():
     """מתחיל שיחה חדשה לגמרי: מוחק את מצב השיחה הקודם (כולל כל מידע על מועמד/ת ותמלול קודם)."""
     _save_state(conversation.new_state())                             # החלפת המצב במצב חדש וריק לגמרי
     return redirect(url_for("chatbot.show_chatbot_page"))               # חזרה למסך הצ'אט הריק
+
+
+# ---------------------------------------------------------------------------------------
+# API בפורמט JSON עבור "בועת הצ'אט" הצפה שמופיעה בכל דפי האתר (templates/base.html).
+# ההבדל מהמסלולים שלמעלה: שם כל הודעה גורמת לטעינה מחדש של העמוד כולו (טופס -> redirect ->
+# רינדור מחדש), וזה איטי ומרגיש כבד. כאן הדפדפן שולח בקשת fetch קטנה ומקבל בחזרה רק את
+# הטקסט של התשובה, בלי לטעון שום דבר אחר - מה שהופך את השיחה למיידית ורציפה.
+# הלוגיקה עצמה זהה לחלוטין (אותה conversation.handle_message), כך שהמהירות לא באה על חשבון
+# איכות התשובה או האבטחה - רק צינור התקשורת בין הדפדפן לשרת השתנה.
+# ---------------------------------------------------------------------------------------
+
+@chatbot_bp.route("/chatbot/api/send", methods=["POST"])
+def api_send_message():
+    """מקבל הודעה בפורמט JSON, מעביר אותה לאותו מוח צ'אטבוט, ומחזיר את התשובה כ-JSON."""
+    payload = request.get_json(silent=True) or {}          # קריאת גוף הבקשה כ-JSON (בלי לקרוס אם הוא פגום)
+    user_message = payload.get("message", "")                 # ההודעה שנשלחה מהדפדפן
+    state = _get_or_create_state()                              # שליפת מצב השיחה הנוכחי מה-session
+    updated_state, bot_reply = conversation.handle_message(state, user_message)  # עיבוד ההודעה
+    _save_state(updated_state)                                    # שמירת המצב המעודכן בחזרה ל-session
+    return jsonify({                                                # החזרת התשובה לדפדפן
+        "reply": bot_reply,                                           # טקסט התשובה של הבוט
+        "stage": updated_state["stage"],                                # שלב השיחה, לשימוש עתידי בממשק
+    })
+
+
+@chatbot_bp.route("/chatbot/api/reset", methods=["POST"])
+def api_reset_conversation():
+    """מאפס את השיחה (כמו כפתור 'שיחה חדשה'), ומחזיר אישור בפורמט JSON."""
+    _save_state(conversation.new_state())     # החלפת המצב במצב חדש וריק לגמרי
+    return jsonify({"ok": True})                 # אישור פשוט לדפדפן
