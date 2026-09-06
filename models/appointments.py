@@ -184,6 +184,28 @@ def get_next_upcoming_appointment(customer_id):
     return dict(row) if row else None                                          # החזרת מילון אם נמצא תור, אחרת None
 
 
+def list_upcoming_appointments(customer_id):
+    """מחזיר את *כל* התורים העתידיים הפתוחים של לקוח/ה מסוים/ת, ממוינים מהקרוב לרחוק.
+    נדרש כדי שהצ'אטבוט יוכל לשאול איזה תור לבטל כשיש יותר מאחד - במקום להניח שמדובר בקרוב
+    ביותר ולמחוק בטעות את התור הלא נכון."""
+    import datetime                                                    # ייבוא מקומי לעבודה עם תאריך היום
+    today = datetime.date.today().isoformat()                            # תאריך היום, לסינון תורים עתידיים בלבד
+    connection = database.get_connection()                                 # פתיחת חיבור לבסיס הנתונים
+    rows = connection.execute(                                               # שליפת כל התורים העתידיים, עם שמות השירותים
+        "SELECT appointments.*, GROUP_CONCAT(services.name, ', ') AS service_names "
+        "FROM appointments "
+        "LEFT JOIN appointment_services ON appointment_services.appointment_id = appointments.id "
+        "LEFT JOIN services ON appointment_services.service_id = services.id "
+        "WHERE appointments.customer_id = ? AND appointments.status = 'ממתין' "
+        "AND appointments.appointment_date >= ? "
+        "GROUP BY appointments.id "
+        "ORDER BY appointments.appointment_date ASC, appointments.appointment_time ASC",
+        (customer_id, today)
+    ).fetchall()
+    connection.close()                                                       # סגירת החיבור
+    return [dict(row) for row in rows]                                         # המרה לרשימת מילונים
+
+
 def list_services():
     """מחזיר את רשימת כל השירותים הקיימים בטבלת services (למשל עבור תפריט בחירה בטופס)."""
     connection = database.get_connection()                # פתיחת חיבור לבסיס הנתונים
