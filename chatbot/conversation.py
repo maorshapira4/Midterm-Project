@@ -95,7 +95,8 @@ def new_state():
 
 def _empty_booking():
     """טיוטת הזמנה ריקה: מה שנאסף עד כה עבור תור חדש."""
-    return {"service_ids": [], "service_names": [], "date": None, "time": None, "gender": None}
+    return {"service_ids": [], "service_names": [], "date": None, "time": None,
+            "time_options": [], "gender": None}
 
 
 def _empty_registration():
@@ -219,9 +220,10 @@ def _service_names_list():
     return [service["name"] for service in appointments.list_services()]
 
 
-def _extract(user_message):
-    """עוטף את קריאת ה-NLU, ומזריק לה את רשימת הטיפולים האמיתית של הקליניקה."""
-    return nlu.extract(user_message, available_service_names=_service_names_list())
+def _extract(user_message, expecting=None):
+    """עוטף את קריאת ה-NLU, ומזריק לה את רשימת הטיפולים האמיתית של הקליניקה ואת ההקשר
+    (על מה בדיוק שאלנו כרגע), כדי שהמודל יפרש נכון קלט דו-משמעי כמו '16'."""
+    return nlu.extract(user_message, available_service_names=_service_names_list(), expecting=expecting)
 
 
 # ============================== תשובות למידע ציבורי ==============================
@@ -287,7 +289,7 @@ def _route_extracted(state, extracted):
     if intent == nlu.INTENT_ADMIN_REQUEST:                      # בקשת פעולת ניהול - סירוב תמידי
         return _ADMIN_REFUSAL
 
-    if intent == nlu.INTENT_BOOK_NEW:                           # בקשה מפורשת לקבוע תור חדש
+    if intent in (nlu.INTENT_BOOK_NEW, nlu.INTENT_CHANGE_DETAILS):   # בקשה לקבוע תור, או לשנות פרט
         return _start_or_continue_booking(state)
 
     if intent == nlu.INTENT_CANCEL:                             # בקשה מפורשת לבטל תור
@@ -300,7 +302,10 @@ def _route_extracted(state, extracted):
         public = _public_answer(intent)
         if public:
             return public
-        return "כדי שאוכל לעזור, קודם כל - איך קוראים לך?"
+        if extracted["confirm"] == "no":                          # "לא תודה" - לא חוזרים לשאול לשם
+            return "בסדר גמור! אם תצטרך/י משהו - אני כאן. 😊"
+        return ("כדי שאוכל לעזור, קודם כל - איך קוראים לך? "
+                "ואם בא לך פשוט לקבוע תור, אפשר להגיד לי 'אני רוצה לקבוע תור'.")
 
     if email:                                                   # מסלול מהיר: נמסר אימייל
         return _verify_with_email(state, email, claimed_name=name)
@@ -308,7 +313,8 @@ def _route_extracted(state, extracted):
     matches = customers.search_customers_by_name(name)          # חיפוש לקוחות תואמים לפי השם
     if len(matches) == 0:
         return (f"לא מצאתי אף אחד בשם '{name}' אצלנו. אולי כדאי לבדוק את האיות? "
-                f"ואם עוד לא היית/ה אצלנו - {_BOOKING_HINT}")
+                f"ואם זו הפעם הראשונה שלך - אין צורך להירשם מראש: פשוט תגיד/י לי "
+                f"'אני רוצה לקבוע תור', ואפתח לך חשבון תוך כדי.")
     if len(matches) == 1:
         return _propose_candidate(state, matches[0])
 
@@ -524,8 +530,19 @@ def _absorb_booking_details(state, extracted):
     if extracted.get("requested_date"):
         booking["date"] = extracted["requested_date"]
         booking["time"] = None        # שינוי תאריך מאפס את השעה, כי המשבצות הפנויות שונות בכל יום
-    if extracted.get("requested_time"):
-        booking["time"] = extracted["requested_time"]
+        booking["time_options"] = []
+
+    times = extracted.get("requested_times") or []
+    if len(times) == 1:                    # שעה אחת ברורה - מקבלים אותה
+        booking["time"] = times[0]
+        booking["time_options"] = []
+    elif len(times) > 1:
+        # הלקוח/ה הזכיר/ה כמה שעות ("מתאים לי 16:30 או 13:00"). *לא* בוחרים עבורו/ה אחת
+        # באופן שרירותי - זו בדיוק התקלה שנצפתה בשיחה אמיתית, שבה הבוט קבע לבד 13:00.
+        # שומרים את האפשרויות ושואלים איזו מהן.
+        booking["time"] = None
+        booking["time_options"] = times
+
     if extracted.get("gender"):
         booking["gender"] = extracted["gender"]
 
@@ -559,7 +576,23 @@ def _start_or_continue_booking(state):
         return date_problem
 
     duration, _price = _booking_total(booking)
-    if not booking["time"]:                                          # (3) באיזו שעה
+
+    if not booking["time"] and booking["time_options"]:              # (3א) הוזכרו כמה שעות - שואלים איזו
+        free_slots = appointments.get_free_slots(booking["date"], duration)
+        available = [t for t in booking["time_options"] if t in free_slots]   # רק אלה שבאמת פנויות
+        state["stage"] = STAGE_BOOKING
+        if len(available) == 1:                                        # רק אחת מהן פנויה - אין דו-משמעות
+            booking["time"] = available[0]
+            booking["time_options"] = []
+            return (f"מבין השעות שציינת, רק {available[0]} פנויה - אז שמתי אותה. "
+                    + _start_or_continue_booking(state))
+        if not available:                                               # אף אחת לא פנויה
+            booking["time_options"] = []
+            return (f"אף אחת מהשעות שציינת לא פנויה ב-{_format_date_he(booking['date'])}. "
+                    f"אלה כן פנויות:\n{', '.join(free_slots)}\n\nמה מתאים לך?")
+        return f"איזו מהן עדיפה לך - {' או '.join(available)}?"          # יש כמה - שואלים
+
+    if not booking["time"]:                                          # (3ב) באיזו שעה
         free_slots = appointments.get_free_slots(booking["date"], duration)
         state["stage"] = STAGE_BOOKING
         if not free_slots:
@@ -591,7 +624,7 @@ def _start_or_continue_booking(state):
 
     if not booking["gender"]:                                        # (4) מגדר בעל/ת התור (שדה חובה במערכת)
         state["stage"] = STAGE_BOOKING
-        return "ועוד דבר קטן - התור הוא לגבר או לאישה?"
+        return "ועוד דבר קטן שאני צריך/ה לרישום - התור הוא לגבר, לאישה, או שתעדיף/י לא לציין?"
 
     if not state.get("identity_verified"):                           # (5) זיהוי - רק אחרי שהפרטים מלאים
         state["stage"] = STAGE_BOOKING_IDENTITY
@@ -629,9 +662,22 @@ def _present_booking_summary(state):
             f"מאשר/ת? (כן / לא)")
 
 
+def _booking_expecting(state):
+    """מחזיר מחרוזת שמתארת מה בדיוק שאלנו כרגע בזרימת ההזמנה, כדי שה-NLU יפרש נכון קלט
+    דו-משמעי. בלי זה, '16' בשלב בחירת השעה נקרא בטעות כתאריך ה-16 בחודש."""
+    booking = state["booking"]
+    if not booking["service_ids"]:
+        return None
+    if not booking["date"]:
+        return "date"
+    if not booking["time"]:
+        return "time"
+    return None
+
+
 def _handle_booking(state, user_message):
     """שלב איסוף פרטי ההזמנה: כל הודעה עוברת חילוץ, מה שנמצא נקלט לטיוטה, וממשיכים לחסר הבא."""
-    extracted = _extract(user_message)
+    extracted = _extract(user_message, expecting=_booking_expecting(state))
     if extracted is None:
         return "לא הצלחתי להבין. אפשר לנסח מחדש?"
 
@@ -657,7 +703,7 @@ def _handle_booking(state, user_message):
 def _handle_booking_identity(state, user_message):
     """אוסף שם/טלפון/אימייל כדי להשלים את ההזמנה: אם האימייל כבר רשום אצלנו - זהו אימות של
     לקוח/ה קיים/ת. אם הוא לא רשום - נרשום לקוח/ה חדש/ה עם הפרטים שנמסרו."""
-    extracted = _extract(user_message)
+    extracted = _extract(user_message, expecting="identity")
     if extracted is None:
         return "לא הצלחתי להבין. אפשר לכתוב שוב את השם, הטלפון והאימייל?"
 
@@ -721,25 +767,48 @@ def _handle_booking_identity(state, user_message):
 
 
 def _handle_booking_confirm(state, user_message):
-    """שלב האישור המפורש: רק תשובה חיובית ברורה תגרום לכתיבת התור לבסיס הנתונים."""
-    extracted_confirm = None
-    if not _yes_no_intent(user_message):                      # אם לא זוהה כן/לא מקומית
-        extracted = _extract(user_message)                       # שואלים את המודל
-        if extracted:
-            if extracted["intent"] == nlu.INTENT_ADMIN_REQUEST:
-                return _ADMIN_REFUSAL
-            extracted_confirm = extracted["confirm"]
+    """שלב האישור המפורש. שלוש אפשרויות: אישור (וקביעה בפועל), ביטול, או *שינוי* פרט בהזמנה.
+    האפשרות השלישית חשובה: בשיחה אמיתית לקוח כתב 'בעצם בא לי בשעה 16:00' בשלב הזה, והבוט
+    ענה לו 'לא הבנתי - לקבוע את התור? כן או לא?' במקום פשוט לשנות. עכשיו אפשר לשנות."""
+    local_answer = _yes_no_intent(user_message)      # בדיקה מקומית מהירה, בלי לבזבז קריאת API
 
-    answer = _yes_no_intent(user_message) or (
-        "positive" if extracted_confirm == "yes" else "negative" if extracted_confirm == "no" else None)
-
-    if answer == "positive":
-        return _book_appointment(state)                       # הפעולה עצמה - רק כאן
-    if answer == "negative":
+    # "כן"/"לא" חד-משמעיים ובודדים - אין צורך בשום עיבוד נוסף
+    if local_answer == "positive" and len(user_message.split()) <= 2:
+        return _book_appointment(state)
+    if local_answer == "negative" and len(user_message.split()) <= 2:
         state["booking"] = _empty_booking()
         state["stage"] = STAGE_VERIFIED
         return "בסדר גמור, לא קבעתי כלום. משהו אחר?"
-    return "לא הבנתי - לקבוע את התור? כן או לא?"
+
+    extracted = _extract(user_message, expecting="time")   # אחרת - מבינים לעומק מה נאמר
+    if extracted is None:
+        return "לא הבנתי - לקבוע את התור כמו שסיכמנו? כן או לא?"
+
+    if extracted["intent"] == nlu.INTENT_ADMIN_REQUEST:
+        return _ADMIN_REFUSAL
+
+    # בקשת שינוי: קולטים את מה שהתבקש ומציגים סיכום מעודכן, במקום לדרוש כן/לא
+    before = dict(state["booking"])
+    _absorb_booking_details(state, extracted)
+    if state["booking"] != before:                        # באמת השתנה משהו
+        state["stage"] = STAGE_BOOKING
+        return "אין בעיה, עדכנתי. " + _start_or_continue_booking(state)
+
+    if extracted["intent"] == nlu.INTENT_CHANGE_DETAILS:
+        # הלקוח/ה רוצה לשנות משהו אך לא אמר/ה מה בדיוק
+        state["stage"] = STAGE_BOOKING
+        state["booking"]["time"] = None
+        state["booking"]["time_options"] = []
+        return "בטח, מה תרצה/י לשנות? " + _start_or_continue_booking(state)
+
+    if extracted["confirm"] == "yes" or local_answer == "positive":
+        return _book_appointment(state)
+    if extracted["confirm"] == "no" or local_answer == "negative":
+        state["booking"] = _empty_booking()
+        state["stage"] = STAGE_VERIFIED
+        return "בסדר גמור, לא קבעתי כלום. משהו אחר?"
+
+    return "לא הבנתי - לקבוע את התור כמו שסיכמנו? אפשר גם להגיד לי מה לשנות."
 
 
 def _book_appointment(state):
@@ -911,7 +980,7 @@ def _handle_verified(state, user_message):
         wanted = extracted["claimed_date"] or extracted["requested_date"]   # אולי צוין איזה תור
         return _offer_cancellation(state, preferred_date=wanted)
 
-    if intent == nlu.INTENT_BOOK_NEW:                         # בקשה מפורשת לקבוע תור חדש
+    if intent in (nlu.INTENT_BOOK_NEW, nlu.INTENT_CHANGE_DETAILS):   # קביעת תור חדש, או שינוי
         _absorb_booking_details(state, extracted)
         return _start_or_continue_booking(state)
 
@@ -927,4 +996,4 @@ def _handle_verified(state, user_message):
         return _build_verified_reply(state, customer)
 
     return ("אפשר לבקש ממני לבדוק את התור שלך, לקבוע חדש, לבטל קיים, "
-            "או לשאול על מחירים ושעות פתיחה.")
+            "או לשאול על מחירים ושעות פתיחה. אלה הדברים שאני מטפל/ת בהם.")
