@@ -569,11 +569,25 @@ def _start_or_continue_booking(state):
         return (f"אלה השעות הפנויות ב-{_format_date_he(booking['date'])} "
                 f"(משך הטיפול: {duration} דקות):\n{', '.join(free_slots)}\n\nאיזו שעה מתאימה לך?")
 
-    if appointments.has_conflict(booking["date"], booking["time"], duration):   # השעה נתפסה בינתיים
-        taken_time = booking["time"]
+    # השעה שנבחרה חייבת להיות אחת מהמשבצות הפנויות בפועל - לא מספיק שהיא "לא מתנגשת".
+    # בלי הבדיקה הזו אפשר היה לבקש 14:15 ולקבל תור, למרות שהקליניקה עובדת רק בשעות עגולות
+    # ובחצאי שעה. הרשימה כאן היא בדיוק אותה רשימה שהוצגה ללקוח/ה, ולכן היא גם מכבדת תורים
+    # שנקבעו בינתיים - כולל כאלה שנקבעו דרך הצ'אט עצמו.
+    free_slots = appointments.get_free_slots(booking["date"], duration)
+    if booking["time"] not in free_slots:
+        requested = booking["time"]
         booking["time"] = None
         state["stage"] = STAGE_BOOKING
-        return f"מצטערים, השעה {taken_time} כבר תפוסה. אפשר לבחור שעה אחרת?"
+        if not free_slots:
+            booking["date"] = None
+            return (f"אין לי משבצות פנויות ב-{_format_date_he(booking['date'] or '')} "
+                    f"לטיפול של {duration} דקות. אפשר לנסות תאריך אחר?")
+        on_grid = appointments.list_slot_times(duration)      # האם השעה בכלל קיימת ברשת?
+        reason = ("כבר תפוסה" if requested in on_grid
+                  else f"לא אחת מהשעות שאנחנו עובדים בהן (אנחנו בקפיצות של "
+                       f"{config.SLOT_LENGTH_MINUTES} דקות)")
+        return (f"השעה {requested} {reason}. אלה השעות שפנויות ב-"
+                f"{_format_date_he(booking['date'])}:\n{', '.join(free_slots)}\n\nמה מתאים לך?")
 
     if not booking["gender"]:                                        # (4) מגדר בעל/ת התור (שדה חובה במערכת)
         state["stage"] = STAGE_BOOKING

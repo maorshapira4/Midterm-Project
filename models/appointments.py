@@ -25,6 +25,46 @@ def _minutes_to_time(total_minutes):
     return f"{hours:02d}:{minutes:02d}"        # בניית מחרוזת עם אפסים מובילים אם צריך (למשל '09:05')
 
 
+def list_slot_times(duration_minutes=0):
+    """מחזיר את רשת משבצות הזמן החוקיות של הקליניקה (בלי קשר לתפוסה): כל השעות שבהן מותר
+    להתחיל תור, משעת הפתיחה ועד שעת הסגירה, בקפיצות של SLOT_LENGTH_MINUTES.
+    duration_minutes מצמצם את הרשימה כך שתכלול רק שעות שבהן התור גם *נגמר* לפני הסגירה."""
+    opening = _time_to_minutes(config.OPENING_TIME)      # שעת פתיחה בדקות מתחילת היום
+    closing = _time_to_minutes(config.CLOSING_TIME)        # שעת סגירה בדקות מתחילת היום
+    times = []                                                # רשימת שעות ההתחלה החוקיות
+    current = opening                                           # מתחילים משעת הפתיחה
+    while current + duration_minutes <= closing:                  # כל עוד התור נגמר לפני הסגירה
+        times.append(_minutes_to_time(current))                     # הוספת המשבצת לרשימה
+        current += config.SLOT_LENGTH_MINUTES                         # קפיצה למשבצת הבאה
+    return times
+
+
+def validate_slot_time(appointment_time, duration_minutes=0):
+    """מוודא ששעת ההתחלה שהתבקשה נמצאת על רשת המשבצות של הקליניקה. זורק ValueError אם לא.
+
+    למה זה קיים? כי בדיקת ההתנגשות לבדה אינה מספיקה: שעה כמו 14:15 אינה מתנגשת בהכרח עם
+    שום תור קיים, ולכן "עברה" בעבר והתקבלה - למרות שהקליניקה עובדת רק בשעות עגולות ובחצאי
+    שעה. תור כזה גם משבש את הרשת לשאר היום, כי הוא תופס חלקים משתי משבצות.
+    הבדיקה כאן ברמת המודל ולא רק בממשק, כדי שהיא תחול על *כל* דרכי ההזמנה - הצ'אטבוט,
+    טופס הלקוח באתר, וטופס הניהול - ולא רק על זו שבמקרה נזכרו לתקן."""
+    valid_times = list_slot_times(duration_minutes)         # כל השעות החוקיות עבור משך התור הזה
+    if appointment_time in valid_times:                       # השעה תקינה - אין מה לעשות
+        return
+
+    all_grid_times = list_slot_times(0)                       # הרשת המלאה, בלי התחשבות במשך
+    if appointment_time in all_grid_times:
+        # השעה עצמה על הרשת, אבל התור לא מספיק להסתיים לפני הסגירה
+        raise ValueError(
+            f"תור באורך {duration_minutes} דקות לא יכול להתחיל ב-{appointment_time}, "
+            f"כי הוא לא יסתיים עד שעת הסגירה ({config.CLOSING_TIME})"
+        )
+    raise ValueError(
+        f"השעה {appointment_time} אינה שעת התחלה אפשרית. "
+        f"אנחנו עובדים בקפיצות של {config.SLOT_LENGTH_MINUTES} דקות, "
+        f"בין {config.OPENING_TIME} ל-{config.CLOSING_TIME}."
+    )
+
+
 def has_conflict(appointment_date, appointment_time, duration_minutes, exclude_id=None):
     """בודק האם קיים תור אחר שחופף בזמן לתור המבוקש, באותו תאריך. מחזיר True אם יש התנגשות."""
     new_start = _time_to_minutes(appointment_time)          # תחילת התור החדש, בדקות מתחילת היום
@@ -66,6 +106,8 @@ def add_appointment(customer_id, guest_name, guest_phone, gender, service_ids,
 
     total_duration = sum(service["default_duration_minutes"] for service in services_selected)  # סכימת משך כל השירותים
     total_price = sum(service["default_price"] for service in services_selected)                   # סכימת מחיר כל השירותים
+
+    validate_slot_time(appointment_time, total_duration)   # השעה חייבת להיות על רשת המשבצות של הקליניקה
 
     if has_conflict(appointment_date, appointment_time, total_duration):  # בדיקת התנגשות עם תור קיים, לפי המשך הכולל
         raise ValueError("קיים כבר תור אחר בטווח הזמן הזה - נא לבחור מועד אחר")  # שגיאת התנגשות
@@ -309,15 +351,9 @@ def get_free_slots(appointment_date, duration_minutes):
     if weekday not in config.OPEN_WEEKDAYS:                                   # אם הקליניקה סגורה באותו יום
         return []                                                               # אין אף משבצת פנויה - רשימה ריקה
 
-    opening = _time_to_minutes(config.OPENING_TIME)      # שעת פתיחה בדקות מתחילת היום
-    closing = _time_to_minutes(config.CLOSING_TIME)      # שעת סגירה בדקות מתחילת היום
-    slot_length = config.SLOT_LENGTH_MINUTES               # אורך משבצת בסיסית, בדקות
-
-    candidate_times = []                                      # רשימת כל שעות ההתחלה האפשריות ליום זה
-    current = opening                                           # מתחילים לבדוק משעת הפתיחה
-    while current + duration_minutes <= closing:                  # כל עוד התור נגמר לפני שעת הסגירה
-        candidate_times.append(_minutes_to_time(current))           # הוספת המועד המועמד לרשימה
-        current += slot_length                                        # מעבר למשבצת הבאה
+    # אותה רשת משבצות בדיוק שמשמשת גם לוולידציה (validate_slot_time), כדי שלא ייווצר מצב שבו
+    # המערכת מציעה שעה שהיא עצמה תדחה אחר כך, או להפך.
+    candidate_times = list_slot_times(duration_minutes)
 
     free_slots = []                                              # רשימת המשבצות שבאמת פנויות (ללא התנגשות)
     for time_str in candidate_times:                               # בדיקת כל מועד מועמד בנפרד

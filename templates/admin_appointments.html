@@ -62,7 +62,14 @@
         <input type="date" id="appointment_date" name="appointment_date" required>  {# שדה תאריך, חובה #}
 
         <label for="appointment_time">שעה</label>  {# תווית לשעת התור #}
-        <input type="time" id="appointment_time" name="appointment_time" required>  {# שדה שעה, חובה #}
+        {# תפריט של שעות ההתחלה החוקיות בלבד, במקום שדה שעה חופשי. שדה חופשי איפשר להזין שעה
+           כמו 14:15 שאינה על רשת המשבצות של הקליניקה. הכלל נאכף גם בשרת (validate_slot_time). #}
+        <select id="appointment_time" name="appointment_time" required>
+            <option value="">— בחרו שעה —</option>
+            {% for slot in slot_times %}
+                <option value="{{ slot }}">{{ slot }}</option>
+            {% endfor %}
+        </select>
 
         <button type="submit">הוספת תור</button>  {# כפתור לשליחת הטופס #}
     </form>

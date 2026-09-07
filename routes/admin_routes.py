@@ -40,6 +40,7 @@ def list_appointments():
         customers=customer_list,
         status_filter=status_filter,
         date_filter=date_filter,
+        slot_times=appointments.list_slot_times(),   # שעות ההתחלה החוקיות, לתפריט הבחירה בטופס
     )
 
 
