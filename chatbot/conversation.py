@@ -728,11 +728,12 @@ def _handle_booking_identity(state, user_message):
     existing = customers.find_customer_by_email(registration["email"])
     if existing:                                              # האימייל כבר רשום - זהו לקוח/ה קיים/ת
         if not _name_matches(registration["full_name"], existing["full_name"]):
-            # הגנת עומק: אימייל של אדם אחד בשם של אדם אחר - לא מאמתים
-            state["registration"] = _empty_registration()
+            # הגנת עומק: אימייל של אדם אחד בשם של אדם אחר - לא מאמתים.
+            # מנקים רק את האימייל ולא את כל הפרטים, כדי לא לגרור את הלקוח/ה להתחיל מאפס.
+            registration["email"] = None
             if _spend_attempt(state):
                 return _blocked_message()
-            return ("רגע, השם והאימייל לא ממש מסתדרים לי יחד. אפשר לבדוק אותם שוב? "
+            return ("רגע, השם והאימייל לא ממש מסתדרים לי יחד. אפשר לבדוק את האימייל שוב? "
                     f"(נשארו {state['attempts_left']} ניסיונות)")
         state["candidate_customer_id"] = existing["id"]
         state["identity_verified"] = True                       # אימות מוצלח של לקוח/ה קיים/ת
@@ -743,11 +744,12 @@ def _handle_booking_identity(state, user_message):
         # הטלפון שייך ללקוח/ה קיים/ת, אבל האימייל שנמסר אינו שלו/ה. לא נרשום לקוח/ה חדש/ה על
         # טלפון קיים (זה היה יוצר רשומות כפולות על מספר של מישהו אחר), וגם לא נקשר לרשומה
         # הקיימת בלי אימות - שני המסלולים היו פרצה.
-        state["registration"] = _empty_registration()
+        registration["email"] = None      # מנקים רק את האימייל - השם והטלפון כבר נמסרו, אין טעם לבקש שוב
         if _spend_attempt(state):
             return _blocked_message()
-        return ("הטלפון הזה כבר רשום אצלנו, אבל עם אימייל אחר. אם זה הטלפון שלך, אפשר לכתוב "
-                f"את האימייל שרשום אצלנו. (נשארו {state['attempts_left']} ניסיונות)")
+        return ("הטלפון הזה כבר רשום אצלנו, אבל עם אימייל אחר. "
+                "אם זה הטלפון שלך - מה האימייל שרשום אצלנו? "
+                f"(נשארו {state['attempts_left']} ניסיונות)")
 
     # לקוח/ה חדש/ה לגמרי: יוצרים רשומה. אין כאן סיכון פרטיות - הפרטים הם של מי שמוסר/ת אותם,
     # ולא נחשף שום מידע קיים. זו בדיוק ההתנהגות של טופס ההזמנה באתר, שיוצר לקוח/ה אוטומטית.
