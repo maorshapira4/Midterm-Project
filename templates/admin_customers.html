@@ -15,14 +15,8 @@
         <label for="phone">טלפון</label>  {# תווית לטלפון #}
         <input type="tel" id="phone" name="phone" required>  {# שדה טלפון, חובה #}
 
-        <label for="email">אימייל</label>  {# תווית לאימייל #}
-        <input type="email" id="email" name="email">  {# שדה אימייל, אופציונלי #}
-
-        <label for="address">כתובת</label>  {# תווית לכתובת #}
-        <input type="text" id="address" name="address">  {# שדה כתובת, אופציונלי #}
-
-        <label for="id_number">תעודת זהות</label>  {# תווית לתעודת הזהות - נדרשת לאימות בצ'אטבוט #}
-        <input type="text" id="id_number" name="id_number" pattern="[0-9]{9}" title="9 ספרות">  {# שדה ת.ז, אופציונלי #}
+        <label for="email">אימייל</label>  {# תווית לאימייל - שדה חובה, משמש לאימות בצ'אטבוט #}
+        <input type="email" id="email" name="email" required>  {# שדה אימייל, חובה #}
 
         <button type="submit">הוספת לקוח</button>  {# כפתור לשליחת הטופס #}
     </form>
@@ -33,16 +27,14 @@
     <div class="table-wrapper">  {# עטיפה לגלילה אופקית #}
     <table>  {# טבלת הלקוחות #}
         <thead>
-            <tr><th>שם מלא</th><th>טלפון</th><th>אימייל</th><th>כתובת</th><th>ת.ז.</th><th>פעולות</th></tr>  {# כותרות עמודות #}
+            <tr><th>שם מלא</th><th>טלפון</th><th>אימייל</th><th>פעולות</th></tr>  {# כותרות עמודות #}
         </thead>
         <tbody>
             {% for customer in customers %}  {# מעבר על כל לקוח ברשימה #}
             <tr>
                 <td><a href="{{ url_for('admin.customer_detail', customer_id=customer.id) }}">{{ customer.full_name }}</a></td>  {# שם הלקוח, מקושר לפרטיו #}
                 <td>{{ customer.phone }}</td>  {# טלפון הלקוח #}
-                <td>{{ customer.email or '-' }}</td>  {# אימייל הלקוח, או מקף אם ריק #}
-                <td>{{ customer.address or '-' }}</td>  {# כתובת הלקוח, או מקף אם ריקה #}
-                <td>{{ customer.id_number or '-' }}</td>  {# תעודת הזהות של הלקוח, או מקף אם ריקה #}
+                <td>{{ customer.email }}</td>  {# אימייל הלקוח - שדה חובה, תמיד קיים #}
                 <td>
                     <form class="inline-form" method="POST" action="{{ url_for('admin.delete_customer', customer_id=customer.id) }}">
                         <button type="submit" class="btn-danger" onclick="return confirm('למחוק את הלקוח לצמיתות?')">מחיקה</button>  {# כפתור מחיקה עם אישור #}

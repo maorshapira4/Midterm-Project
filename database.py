@@ -35,18 +35,63 @@ def init_db():
         schema_sql = schema_file.read()                                   # קריאת כל תוכן קובץ ה-SQL כמחרוזת אחת
     connection.executescript(schema_sql)                                   # הרצת כל פקודות ה-CREATE TABLE שבקובץ בבת אחת
     connection.commit()                                                     # שמירת השינויים בפועל לקובץ בסיס הנתונים
-    _migrate_add_missing_columns(connection)                                  # השלמת עמודות חדשות בבסיס נתונים ישן, אם צריך
+    _migrate_customers_table(connection)                                  # התאמת מבנה טבלת הלקוחות, אם היא במבנה ישן
     connection.close()                                                       # סגירת החיבור לאחר סיום יצירת הטבלאות
 
 
-def _migrate_add_missing_columns(connection):
-    """מיגרציה קלה: משלימה עמודות שנוספו לסכמה בגרסאות מאוחרות יותר של הפרויקט, במקרה שבסיס
-    הנתונים כבר קיים מריצה קודמת ונוצר לפני שהעמודה נוספה ל-schema.sql (למשל בסיס נתונים ישן
-    שכבר רץ על שרת חי). "CREATE TABLE IF NOT EXISTS" לא מוסיף עמודות לטבלה שכבר קיימת - ולכן
-    צריך את הבדיקה הידנית הזו כדי שהעדכון יעבוד גם על בסיסי נתונים קיימים, לא רק על חדשים."""
-    existing_columns = {                                                          # שמות כל העמודות הקיימות כרגע בטבלת customers
+def _migrate_customers_table(connection):
+    """מיגרציה למבנה טבלת הלקוחות הנוכחי: אימייל כשדה חובה, בלי תעודת זהות ובלי כתובת.
+
+    למה צריך את זה בכלל? כי "CREATE TABLE IF NOT EXISTS" אינו משנה טבלה שכבר קיימת. בסיס
+    נתונים שנוצר בגרסה קודמת של הפרויקט (למשל זה שרץ על השרת החי) נשאר עם המבנה הישן, ולכן
+    צריך לבנות את הטבלה מחדש. ב-SQLite אי אפשר פשוט "למחוק עמודה" בגרסאות ישנות, ולכן הדרך
+    הבטוחה והנתמכת בכל הגרסאות היא: יצירת טבלה חדשה, העתקת הנתונים הרלוונטיים אליה, מחיקת
+    הישנה, ושינוי שם.
+
+    חשוב: לקוח/ה בלי אימייל אינו/ה יכול/ה להתקיים במבנה החדש (האימייל הוא אמצעי האימות),
+    ולכן רשומות כאלה אינן מועתקות - יחד עם התורים והחשבוניות שלהן, כדי לא להשאיר רשומות
+    "יתומות" שמצביעות ללקוח/ה שכבר לא קיים/ת."""
+    columns = {                                                        # שמות העמודות הקיימות כרגע בטבלה
         row["name"] for row in connection.execute("PRAGMA table_info(customers)").fetchall()
     }
-    if "id_number" not in existing_columns:                                         # אם העמודה עדיין לא קיימת בפועל
-        connection.execute("ALTER TABLE customers ADD COLUMN id_number TEXT")          # הוספתה כעת, כעמודה ריקה לרשומות קיימות
-        connection.commit()                                                              # שמירת שינוי המבנה בפועל
+    needs_migration = "id_number" in columns or "address" in columns   # מבנה ישן מזוהה לפי העמודות שהוסרו
+    if not needs_migration:                                              # הטבלה כבר במבנה הנכון
+        return                                                              # אין מה לעשות
+
+    connection.execute("PRAGMA foreign_keys = OFF")     # כיבוי זמני, כדי שאפשר יהיה להחליף את הטבלה
+    try:
+        # (1) מזהי הלקוחות שאין להם אימייל תקין - הם לא יעברו למבנה החדש
+        doomed = [row["id"] for row in connection.execute(
+            "SELECT id FROM customers WHERE email IS NULL OR TRIM(email) = ''"
+        ).fetchall()]
+
+        if doomed:                                                        # ניקוי כל מה שתלוי בהם
+            placeholders = ",".join("?" for _ in doomed)
+            connection.execute(f"DELETE FROM appointment_services WHERE appointment_id IN "
+                                f"(SELECT id FROM appointments WHERE customer_id IN ({placeholders}))", doomed)
+            connection.execute(f"DELETE FROM invoices WHERE customer_id IN ({placeholders})", doomed)
+            connection.execute(f"DELETE FROM appointments WHERE customer_id IN ({placeholders})", doomed)
+
+        # (2) בניית הטבלה החדשה, העתקת הנתונים התקינים בלבד, והחלפה
+        connection.execute("""
+            CREATE TABLE customers_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                full_name TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                email TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        connection.execute(
+            "INSERT INTO customers_new (id, full_name, phone, email, created_at) "
+            "SELECT id, full_name, phone, email, created_at FROM customers "
+            "WHERE email IS NOT NULL AND TRIM(email) != ''"
+        )
+        connection.execute("DROP TABLE customers")                       # מחיקת הטבלה הישנה
+        connection.execute("ALTER TABLE customers_new RENAME TO customers")  # והחלפתה בחדשה
+        connection.commit()                                                 # שמירת כל המיגרציה יחד
+    except Exception:
+        connection.rollback()                                            # אם משהו נכשל - לא משאירים מצב חלקי
+        raise
+    finally:
+        connection.execute("PRAGMA foreign_keys = ON")                    # החזרת אכיפת המפתחות הזרים

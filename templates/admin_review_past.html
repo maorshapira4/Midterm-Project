@@ -1,0 +1,41 @@
+{# admin_review_past.html - מסך סקירת תורים שמועדם כבר עבר אך עדיין מסומנים "ממתין".
+   המסך הזה מוקפץ אוטומטית מיד אחרי כניסת המנהל/ת לניהול, כדי שלא יישארו תורים "תלויים באוויר"
+   שאף אחד לא הכריע מה קרה איתם בפועל. #}
+{% extends "base.html" %}
+
+{% block title %}תורים שממתינים להחלטה{% endblock %}
+
+{% block content %}
+<h1>תורים שעבר זמנם</h1>  {# כותרת ראשית #}
+
+<div class="card review-intro">  {# הסבר קצר על מה נדרש כאן #}
+    <p><strong>יש {{ appointments|length }} תורים שמועדם כבר עבר, ועדיין מסומנים "ממתין".</strong></p>
+    <p>אפשר לסמן לכל אחד מהם אם הוא <strong>בוצע</strong>, או ש<strong>לא התקיים</strong> - ואז הוא יוסר מהרשימה.</p>
+</div>
+
+{% for appt in appointments %}  {# כרטיס נפרד לכל תור שממתין להחלטה #}
+<div class="card review-card">
+    <div class="review-details">  {# פרטי התור, כדי שיהיה אפשר לזהות אותו #}
+        <div class="review-when">{{ appt.appointment_date }} בשעה {{ appt.appointment_time }}</div>
+        <div class="review-who">{{ appt.customer_name or appt.guest_name or 'ללא שם' }}</div>
+        <div class="review-what">{{ appt.service_names or 'ללא שירותים' }} · {{ appt.price }} ש"ח</div>
+    </div>
+    <div class="review-actions">  {# שני כפתורי ההכרעה #}
+        <form class="inline-form" method="POST" action="{{ url_for('admin.update_appointment_status', appointment_id=appt.id) }}">
+            <input type="hidden" name="status" value="בוצע">  {# סימון שהתור בוצע בפועל #}
+            <input type="hidden" name="return_to" value="review">  {# חזרה למסך הזה, להמשך הסקירה #}
+            <button type="submit">בוצע ✓</button>
+        </form>
+        <form class="inline-form" method="POST" action="{{ url_for('admin.update_appointment_status', appointment_id=appt.id) }}">
+            <input type="hidden" name="status" value="בוטל">  {# "בוטל" מוחק את התור מהמערכת #}
+            <input type="hidden" name="return_to" value="review">
+            <button type="submit" class="btn-danger" onclick="return confirm('התור לא התקיים ויוסר מהמערכת. להמשיך?')">לא התקיים ✕</button>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+<div class="card">  {# אפשרות לדלג ולחזור מאוחר יותר #}
+    <a class="btn" href="{{ url_for('admin.list_appointments') }}">אטפל בזה מאוחר יותר</a>
+</div>
+{% endblock %}

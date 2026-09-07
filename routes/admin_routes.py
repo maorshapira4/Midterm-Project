@@ -29,6 +29,8 @@ def list_appointments():
     status_filter = request.args.get("status") or None            # קריאת פרמטר הסינון "status" מהכתובת, אם קיים
     date_filter = request.args.get("date") or None                  # קריאת פרמטר הסינון "date" מהכתובת, אם קיים
     appointment_list = appointments.list_appointments(status_filter, date_filter)  # שליפת רשימת התורים המסוננת
+    for appointment in appointment_list:                              # סימון לכל תור האם מועדו כבר עבר,
+        appointment["is_past"] = appointments.is_past(appointment)       # כדי שהתבנית תדע אם להציג "בוצע"
     service_list = appointments.list_services()                       # שליפת רשימת השירותים עבור תפריט הבחירה בטופס
     customer_list = customers.list_customers()                          # שליפת רשימת הלקוחות עבור תפריט הקישור בטופס
     return render_template(                                              # הצגת תבנית ה-HTML עם כל הנתונים שאספנו
@@ -80,14 +82,30 @@ def add_appointment():
 
 @admin_bp.route("/appointments/<int:appointment_id>/status", methods=["POST"])
 def update_appointment_status(appointment_id):
-    """מעדכן את הסטטוס של תור קיים (ממתין / בוצע / בוטל) לפי בחירת המנהל/ת."""
+    """מעדכן את הסטטוס של תור קיים. שימו לב: 'בוטל' מוחק את התור מהמערכת במקום לשמור אותו
+    עם סטטוס 'בוטל', ו'בוצע' מותר רק לתור שמועדו כבר עבר - שני הכללים נאכפים במודל."""
     new_status = request.form.get("status")                       # קריאת הסטטוס החדש מהטופס
+    return_to = request.form.get("return_to")                       # לאן לחזור אחרי הפעולה (רשימה או מסך הסקירה)
     try:
-        appointments.update_status(appointment_id, new_status)      # ניסיון לעדכן את הסטטוס בבסיס הנתונים
-        flash("סטטוס התור עודכן")                                     # הודעת הצלחה
-    except ValueError as error:                                       # תפיסת שגיאת סטטוס לא חוקי
-        flash(str(error))                                                # הצגת השגיאה למשתמש
-    return redirect(url_for("admin.list_appointments"))                   # חזרה לעמוד רשימת התורים
+        result = appointments.update_status(appointment_id, new_status)  # ניסיון לעדכן/למחוק
+        flash("התור בוטל והוסר מהרשימה" if result == "deleted" else "סטטוס התור עודכן")
+    except ValueError as error:                                       # תפיסת שגיאת סטטוס לא חוקי או תור עתידי
+        flash(str(error))                                                # הצגת השגיאה המדויקת למשתמש
+    if return_to == "review":                                          # אם הגענו ממסך סקירת התורים שעברו
+        return redirect(url_for("admin.review_past_appointments"))        # חוזרים אליו, להמשך הסקירה
+    return redirect(url_for("admin.list_appointments"))                   # אחרת - חזרה לעמוד רשימת התורים
+
+
+@admin_bp.route("/appointments/review")
+def review_past_appointments():
+    """מסך סקירה: מציג את כל התורים שמועדם עבר אך עדיין מסומנים 'ממתין', ומבקש מהמנהל/ת
+    להחליט לגבי כל אחד - האם הוא בוצע, או שהוא מבוטל (ואז יימחק). המסך הזה מוקפץ אוטומטית
+    מיד אחרי כניסה לניהול, כשיש תורים כאלה שממתינים להחלטה."""
+    pending = appointments.list_past_pending_appointments()      # שליפת התורים שמועדם עבר וטרם הוכרעו
+    if not pending:                                                 # אם אין כאלה - אין מה לסקור
+        flash("אין תורים שעבר זמנם וממתינים להחלטה")
+        return redirect(url_for("admin.list_appointments"))
+    return render_template("admin_review_past.html", appointments=pending)   # הצגת מסך הסקירה
 
 
 @admin_bp.route("/appointments/<int:appointment_id>/delete", methods=["POST"])
@@ -109,18 +127,16 @@ def list_customers():
 
 @admin_bp.route("/customers/add", methods=["POST"])
 def add_customer():
-    """מוסיף לקוח חדש לבסיס הנתונים מתוך טופס הניהול."""
+    """מוסיף לקוח חדש לבסיס הנתונים מתוך טופס הניהול. אימייל הוא שדה חובה - הוא משמש לאימות."""
     full_name = request.form.get("full_name")     # שם הלקוח מהטופס
     phone = request.form.get("phone")               # טלפון הלקוח מהטופס
-    email = request.form.get("email") or None          # אימייל הלקוח מהטופס (אופציונלי)
-    address = request.form.get("address") or None         # כתובת הלקוח מהטופס (אופציונלי)
-    id_number = request.form.get("id_number") or None        # תעודת זהות מהטופס (אופציונלי, לצורך אימות בצ'אטבוט)
+    email = request.form.get("email")                 # אימייל הלקוח מהטופס (חובה)
     try:
-        customers.add_customer(full_name, phone, email, address, id_number)  # ניסיון להוסיף את הלקוח
-        flash("הלקוח נוסף בהצלחה")                                    # הודעת הצלחה
-    except ValueError as error:                                        # תפיסת שגיאת ולידציה
-        flash(str(error))                                                # הצגת השגיאה למשתמש
-    return redirect(url_for("admin.list_customers"))                       # חזרה לעמוד רשימת הלקוחות
+        customers.add_customer(full_name, phone, email)  # ניסיון להוסיף את הלקוח
+        flash("הלקוח נוסף בהצלחה")                          # הודעת הצלחה
+    except ValueError as error:                             # תפיסת שגיאת ולידציה (אימייל חסר/כפול/לא תקין)
+        flash(str(error))                                      # הצגת השגיאה למשתמש
+    return redirect(url_for("admin.list_customers"))             # חזרה לעמוד רשימת הלקוחות
 
 
 @admin_bp.route("/customers/<int:customer_id>")

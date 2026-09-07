@@ -42,7 +42,7 @@ import chatbot.gemini_client as gemini_client   # ניסוח התשובה הסו
 STAGE_START = "start"                     # עדיין לא ידוע מי המשתמש/ת
 STAGE_AWAIT_CONFIRM = "await_confirm"     # נמצא לקוח יחיד תואם, מחכים לאישור "כן/לא זה אני"
 STAGE_AWAIT_CLARIFY = "await_clarify"     # נמצאו כמה לקוחות תואמים, מחכים לשם מלא לצורך הבהרה
-STAGE_AWAIT_ID = "await_id"               # מחכים להזנת תעודת זהות לצורך אימות
+STAGE_AWAIT_EMAIL = "await_email"         # מחכים להזנת האימייל לצורך אימות
 STAGE_VERIFIED = "verified"               # הזהות אומתה בהצלחה בשיחה הזו
 STAGE_BLOCKED = "blocked"                 # נחסם אחרי יותר מדי ניסיונות אימות כושלים
 STAGE_BOOKING = "booking"                 # אוספים את פרטי התור החדש (טיפולים/תאריך/שעה/מגדר)
@@ -54,21 +54,23 @@ STAGE_CANCEL_CONFIRM = "cancel_confirm"             # מציגים את התור
 _POSITIVE_WORDS = {"כן", "נכון", "אכן", "בדיוק", "כמובן", "מאשר", "מאשרת", "yes", "yep", "ok", "אוקיי"}
 _NEGATIVE_WORDS = {"לא", "שלילי", "טעות", "בטל", "no", "nope"}
 
-_BOOKING_HINT = "אפשר לקבוע תור כאן איתי בצ'אט - פשוט לכתוב 'אני רוצה לקבוע תור'."
+_BOOKING_HINT = "אפשר לקבוע תור ממש כאן איתי - רק לכתוב 'אני רוצה לקבוע תור'."
 
 _ADMIN_REFUSAL = (
-    "אני העוזר/ת של הלקוחות, ואין לי הרשאה לפעולות ניהול או למסירת נתונים מהמערכת - "
-    "כמו רשימות לקוחות, תורים של אנשים אחרים, חשבוניות, לידים או נתוני הכנסות. "
-    "אני יכול/ה לעזור רק עם התור שלך: לבדוק אותו, לקבוע תור חדש או לבטל תור קיים."
+    "אני כאן בשביל הלקוחות, ואין לי גישה לדברים של ההנהלה - רשימות לקוחות, תורים של אנשים "
+    "אחרים, חשבוניות או נתוני הכנסות. מה שכן אני יכול/ה לעשות: לבדוק מתי התור שלך, "
+    "לקבוע לך תור חדש, או לבטל תור קיים."
 )
 
 _PHRASING_SYSTEM_INSTRUCTION = (
-    "את/ה עוזר/ת קליניקת קוסמטיקה ידידותי/ת, שמנוסח/ת בעברית תקנית. תקבל/י עובדות אמיתיות על "
-    "תור של לקוח/ה, ואת התאריך שהלקוח/ה חשב/ה (בטעות) שהתור נמצא בו. נסח/י משפט אחד או שניים "
-    "קצרים, אדיבים וברורים בעברית, שמודיעים ללקוח/ה מה התאריך והשעה האמיתיים של התור (ואילו "
-    "שירותים כלולים בו), ומציינים בעדינות שהתאריך שהוא/היא ציין/ה שגוי. "
-    "חשוב מאוד: אסור לך להמציא, לשנות או לנחש שום נתון - יש להשתמש אך ורק בדיוק בעובדות שסופקו "
-    "לך בהודעה. אל תוסיף/י ברכות מיותרות או הקדמות ארוכות - ישר לעניין."
+    "את/ה העוזר/ת של קליניקת קוסמטיקה קטנה, ומדבר/ת עברית יומיומית, חמה וטבעית - כמו בן אדם "
+    "שעונה ללקוחה בוואטסאפ, לא כמו מכתב רשמי. "
+    "תקבל/י עובדות על תור של לקוח/ה, ואת התאריך שהוא/היא חשב/ה בטעות שהתור נמצא בו. "
+    "נסח/י משפט אחד או שניים קצרים שמעדכנים מה התאריך והשעה האמיתיים ואילו טיפולים כלולים, "
+    "ומעירים בעדינות שהתאריך שנאמר לא מדויק. "
+    "כללים קשיחים: מותר להשתמש אך ורק בעובדות שסופקו לך בהודעה הזו. אסור להמציא, לשנות או "
+    "להשלים שום נתון, ואסור להשתמש בשום ידע חיצוני או מידע מהאינטרנט - אין לך שום מקור מלבד "
+    "מה שכתוב כאן. בלי הקדמות ארוכות ובלי נוסחאות נימוס מיותרות - ישר לעניין, בגובה העיניים."
 )
 
 _WEEKDAY_NAMES_HE = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"]   # לפי weekday() של פייתון
@@ -98,7 +100,7 @@ def _empty_booking():
 
 def _empty_registration():
     """פרטי רישום ריקים: מה שנאסף עד כה עבור לקוח/ה שעדיין לא רשום/ה במערכת."""
-    return {"full_name": None, "phone": None, "id_number": None}
+    return {"full_name": None, "phone": None, "email": None}
 
 
 def _assert_verified(state):
@@ -117,23 +119,23 @@ def handle_message(state, user_message):
     """נקודת הכניסה המרכזית: מקבלת את מצב השיחה ואת ההודעה החדשה, ומחזירה (state מעודכן, תשובה)."""
     user_message = (user_message or "").strip()                        # ניקוי רווחים מיותרים בקצוות
     if not user_message:                                                  # הודעה ריקה - אין מה לעבד
-        return state, "לא קיבלתי שום הודעה. אפשר לכתוב שוב?"
+        return state, "לא קיבלתי כלום... אפשר לכתוב שוב?"
 
     _ensure_state_shape(state)                                          # תאימות לשיחות שנפתחו בגרסה קודמת
     state["history"].append({"role": "user", "text": user_message})       # שמירת הודעת המשתמש בתמלול
 
     stage = state["stage"]                                               # השלב הנוכחי של השיחה
     if stage == STAGE_BLOCKED:
-        reply = ("השיחה הזו נחסמה בעקבות יותר מדי ניסיונות אימות שגויים, מטעמי אבטחה. "
-                 "אפשר לפנות אלינו טלפונית, או ללחוץ על 'שיחה חדשה' כדי להתחיל מחדש.")
+        reply = ("סגרתי את השיחה הזו אחרי יותר מדי ניסיונות שלא הצליחו - זה בשביל להגן על "
+                 "הפרטים של הלקוחות שלנו. אפשר להתקשר אלינו, או ללחוץ על 'שיחה חדשה' ולנסות שוב.")
     elif stage == STAGE_START:
         reply = _handle_start(state, user_message)
     elif stage == STAGE_AWAIT_CONFIRM:
         reply = _handle_await_confirm(state, user_message)
     elif stage == STAGE_AWAIT_CLARIFY:
         reply = _handle_await_clarify(state, user_message)
-    elif stage == STAGE_AWAIT_ID:
-        reply = _handle_await_id(state, user_message)
+    elif stage == STAGE_AWAIT_EMAIL:
+        reply = _handle_await_email(state, user_message)
     elif stage == STAGE_BOOKING:
         reply = _handle_booking(state, user_message)
     elif stage == STAGE_BOOKING_IDENTITY:
@@ -147,7 +149,7 @@ def handle_message(state, user_message):
     elif stage == STAGE_VERIFIED:
         reply = _handle_verified(state, user_message)
     else:                                                                  # מצב לא צפוי (הגנה תיאורטית)
-        reply = "משהו השתבש. אפשר ללחוץ על 'שיחה חדשה' ולנסות שוב?"
+        reply = "אופס, משהו השתבש לי. אפשר ללחוץ על 'שיחה חדשה' ולנסות שוב?"
 
     state["history"].append({"role": "bot", "text": reply})             # שמירת תשובת הבוט בתמלול
     return state, reply
@@ -181,9 +183,16 @@ def _digits_only(text):
     return re.sub(r"\D", "", text or "")
 
 
-def _looks_like_id_attempt(text):
-    """האם ההודעה היא בכלל ניסיון להזין תעודת זהות. חשוב להוגנות: שאלה תמימה לא תבזבז ניסיון."""
-    return len(_digits_only(text)) >= 5
+def _looks_like_email(text):
+    """האם ההודעה מכילה בכלל משהו שנראה כמו כתובת אימייל. חשוב להוגנות: שאלה תמימה כמו
+    'למה אתם צריכים את זה?' לא תיחשב ניסיון אימות כושל ולא תבזבז ניסיון יקר."""
+    return bool(re.search(r"[^\s@]+@[^\s@]+\.[^\s@]+", text or ""))
+
+
+def _extract_email(text):
+    """שולף כתובת אימייל מתוך טקסט חופשי ומנרמל אותה, או None אם אין שם כזו."""
+    match = re.search(r"[^\s@]+@[^\s@]+\.[^\s@]+", text or "")
+    return match.group(0).strip().strip(".,;").lower() if match else None
 
 
 def _name_matches(given_name, full_name):
@@ -226,13 +235,13 @@ def _services_answer():
         return "רשימת הטיפולים אינה זמינה כרגע."
     lines = [f"• {s['name']} - {s['default_duration_minutes']} דקות, {int(s['default_price'])} ש\"ח"
              for s in service_list]
-    return "אלה הטיפולים שאנחנו מציעים:\n" + "\n".join(lines)
+    return "אלה הטיפולים שלנו:\n" + "\n".join(lines)
 
 
 def _hours_answer():
     """שעות וימי הפעילות של הקליניקה - מידע פומבי מקובץ ההגדרות."""
     open_days = ", ".join(_WEEKDAY_NAMES_HE[day] for day in config.OPEN_WEEKDAYS)
-    return f"אנחנו פתוחים בימים {open_days}, בין השעות {config.OPENING_TIME} ל-{config.CLOSING_TIME}."
+    return f"אנחנו פתוחים בימים {open_days}, בין {config.OPENING_TIME} ל-{config.CLOSING_TIME}."
 
 
 def _public_answer(intent):
@@ -242,9 +251,8 @@ def _public_answer(intent):
     if intent == nlu.INTENT_OPENING_HOURS:
         return _hours_answer()
     if intent == nlu.INTENT_GREETING:
-        return ("שלום! אני העוזר/ת הדיגיטלי/ת של הקליניקה. אפשר לבקש ממני לבדוק מתי התור שלך, "
-                "לקבוע תור חדש או לבטל תור קיים (אבקש אימות זהות לפני כן), "
-                "וגם לשאול על מחירי טיפולים ושעות פתיחה.")
+        return ("היי! אני העוזר/ת של הקליניקה 💅 אפשר לשאול אותי מתי התור שלך, לקבוע תור חדש "
+                "או לבטל אחד קיים (רק אוודא קודם שזה באמת את/ה), וגם על מחירים ושעות פתיחה.")
     if intent == nlu.INTENT_ADMIN_REQUEST:
         return _ADMIN_REFUSAL
     return None
@@ -254,16 +262,16 @@ def _public_answer(intent):
 
 def _handle_start(state, user_message):
     """שלב הזיהוי הראשוני: חילוץ הפרטים מההודעה, וניתוב לזרימה המתאימה."""
-    # מסלול מהיר: הודעה שכולה ספרות היא בבירור תעודת זהות - אין שום שפה להבין, ולכן מדלגים
-    # לחלוטין על הקריאה ל-Gemini. התשובה מיידית, ונחסכת קריאת API מהמכסה החינמית.
+    # מסלול מהיר: הודעה שכולה כתובת אימייל ותו לא - אין כאן שפה להבין, ולכן מדלגים לחלוטין
+    # על הקריאה ל-Gemini. התשובה מיידית, ונחסכת קריאת API מהמכסה החינמית.
     stripped = user_message.strip()
-    if stripped.isdigit() and len(stripped) >= 5:
-        return _verify_with_id_number(state, stripped)
+    if _looks_like_email(stripped) and " " not in stripped:
+        return _verify_with_email(state, stripped)
 
     extracted = _extract(user_message)
     if extracted is None:
-        return ("מצטערים, לא הצלחתי להבין את ההודעה כרגע. אפשר לנסח מחדש? "
-                "לדוגמה: 'קוראים לי דנה ויש לי תור ב-15.03.2027'.")
+        return ("לא הצלחתי להבין, סליחה. אפשר לנסח את זה אחרת? "
+                "למשל: 'קוראים לי דנה ויש לי תור ב-15.03.2027'.")
 
     return _route_extracted(state, extracted)
 
@@ -285,28 +293,27 @@ def _route_extracted(state, extracted):
     if intent == nlu.INTENT_CANCEL:                             # בקשה מפורשת לבטל תור
         if state["stage"] == STAGE_VERIFIED:
             return _offer_cancellation(state)
-        return ("בשמחה. כדי לבטל תור אני צריך/ה קודם לאמת את זהותך. "
-                "אפשר לכתוב את השם המלא שלך?")
+        return "בשמחה! רק שנייה - קודם אני צריך/ה לדעת מי את/ה. איך קוראים לך?"
 
-    name, id_number = extracted["name"], extracted["id_number"]
-    if not name and not id_number:                              # לא נמסר שום פרט מזהה
+    name, email = extracted["name"], extracted["email"]
+    if not name and not email:                                  # לא נמסר שום פרט מזהה
         public = _public_answer(intent)
         if public:
             return public
-        return "כדי לבדוק את התור שלך אני צריך/ה לדעת מי את/ה. אפשר לכתוב את השם שלך?"
+        return "כדי שאוכל לעזור, קודם כל - איך קוראים לך?"
 
-    if id_number:                                               # מסלול מהיר: נמסרה תעודת זהות
-        return _verify_with_id_number(state, id_number, claimed_name=name)
+    if email:                                                   # מסלול מהיר: נמסר אימייל
+        return _verify_with_email(state, email, claimed_name=name)
 
     matches = customers.search_customers_by_name(name)          # חיפוש לקוחות תואמים לפי השם
     if len(matches) == 0:
-        return (f"לא מצאתי לקוח/ה בשם '{name}' במערכת שלנו. אפשר לבדוק את האיות ולנסות שוב? "
-                f"אם עוד לא היית/ה אצלנו - {_BOOKING_HINT}")
+        return (f"לא מצאתי אף אחד בשם '{name}' אצלנו. אולי כדאי לבדוק את האיות? "
+                f"ואם עוד לא היית/ה אצלנו - {_BOOKING_HINT}")
     if len(matches) == 1:
         return _propose_candidate(state, matches[0])
 
     state["stage"] = STAGE_AWAIT_CLARIFY                        # 2+ תוצאות - לא מנחשים, מבקשים הבהרה
-    return f"מצאתי כמה לקוחות בשם '{name}' במערכת. אפשר לכתוב את השם המלא שלך (שם פרטי ושם משפחה)?"
+    return f"יש לנו כמה בשם '{name}'... מה השם המלא שלך?"
 
 
 def _propose_candidate(state, candidate):
@@ -324,37 +331,37 @@ def _handle_await_clarify(state, user_message):
     if len(matches) == 1:
         return _propose_candidate(state, matches[0])
     if len(matches) > 1:
-        return "עדיין נמצאו כמה התאמות. אפשר לכתוב שם מלא ומדויק יותר (שם פרטי ושם משפחה)?"
+        return "עדיין יש כמה אפשרויות. אפשר שם פרטי ושם משפחה?"
 
     extracted = _extract(user_message)                           # 0 התאמות - אולי זו בכלל שאלה
     if extracted:
         public = _public_answer(extracted["intent"])
         if public:
             return public + "\n\nובחזרה לזיהוי: אפשר לכתוב את השם המלא שלך?"
-        if extracted["id_number"]:
-            return _verify_with_id_number(state, extracted["id_number"], claimed_name=extracted["name"])
+        if extracted["email"]:
+            return _verify_with_email(state, extracted["email"], claimed_name=extracted["name"])
         if extracted["name"]:
             by_name = customers.search_customers_by_name(extracted["name"])
             if len(by_name) == 1:
                 return _propose_candidate(state, by_name[0])
-    return "עדיין לא הצלחתי למצוא לקוח/ה בשם הזה. אפשר לכתוב את השם המלא בדיוק כפי שהוא רשום אצלנו?"
+    return "עדיין לא מצאתי. אפשר לכתוב את השם המלא בדיוק כמו שהוא רשום אצלנו?"
 
 
 def _handle_await_confirm(state, user_message):
     """המשתמש/ת מאשר/ת או מכחיש/ה שזה השם המלא שלו/ה, לפני שמבקשים תעודת זהות."""
     intent = _yes_no_intent(user_message)
     if intent == "positive":
-        state["stage"] = STAGE_AWAIT_ID
-        return "מה תעודת הזהות שלך? (לצורך אימות בלבד)"
+        state["stage"] = STAGE_AWAIT_EMAIL
+        return "מעולה. רק כדי לוודא שזה באמת את/ה - מה האימייל שרשום אצלנו?"
     if intent == "negative":
         state["candidate_customer_id"] = None
         state["identity_verified"] = False     # ביטול המועמד/ת מכבה גם את דגל האימות
         state["stage"] = STAGE_START
-        return "אין בעיה, מצטערים על הטעות. אפשר לכתוב מה השם המלא שלך?"
+        return "אוי, סליחה! אז מה השם המלא שלך?"
 
-    if _looks_like_id_attempt(user_message):        # המשתמש/ת "קפץ/ה קדימה" והזין/ה ת.ז.
-        state["stage"] = STAGE_AWAIT_ID
-        return _handle_await_id(state, user_message)
+    if _looks_like_email(user_message):        # המשתמש/ת "קפץ/ה קדימה" והזין/ה ת.ז.
+        state["stage"] = STAGE_AWAIT_EMAIL
+        return _handle_await_email(state, user_message)
 
     extracted = _extract(user_message)
     if extracted:
@@ -365,7 +372,7 @@ def _handle_await_confirm(state, user_message):
             matches = customers.search_customers_by_name(extracted["name"])
             if len(matches) == 1:
                 return _propose_candidate(state, matches[0])
-    return "לא הבנתי - זה נכון או לא נכון? אפשר לענות 'כן' או 'לא'."
+    return "לא הבנתי - זה השם הנכון? אפשר לענות כן או לא."
 
 
 # ============================== שלב 3: אימות תעודת זהות ==============================
@@ -383,8 +390,8 @@ def _spend_attempt(state):
 
 def _blocked_message():
     """הודעת החסימה האחידה, אחרי ניצול כל ניסיונות האימות."""
-    return ("תעודת הזהות שהוזנה שגויה, ונוצל מספר הניסיונות המרבי המותר. "
-            "מטעמי אבטחה השיחה נחסמת כעת. אפשר לפנות אלינו טלפונית, או להתחיל שיחה חדשה.")
+    return ("היו כאן יותר מדי ניסיונות שלא הצליחו, אז אני סוגר/ת את השיחה - זה בשביל להגן "
+            "על הפרטים של הלקוחות שלנו. אפשר להתקשר אלינו, או להתחיל שיחה חדשה.")
 
 
 def _after_verification(state, customer):
@@ -398,65 +405,62 @@ def _after_verification(state, customer):
     return _build_verified_reply(state, customer)
 
 
-def _verify_with_id_number(state, id_number, claimed_name=None):
-    """אימות ישיר לפי תעודת זהות שנמסרה בהודעה חופשית. תעודת הזהות היא סוד שרק בעל/ת התעודה
-    אמור/ה להכיר, ולכן התאמה מדויקת שלה מהווה אימות לגיטימי. כל ניסיון כושל צורך ניסיון
-    מהמכסה, כדי שלא ניתן יהיה לנחש תעודות זהות באופן שיטתי."""
-    customer = customers.find_customer_by_id_number(id_number)
-    if customer is None:                                    # התעודה כלל לא רשומה במערכת
+def _verify_with_email(state, email, claimed_name=None):
+    """אימות לפי כתובת האימייל הרשומה במערכת. רק מי שיודע/ת את האימייל שרשום אצלנו עבור אותו/ה
+    לקוח/ה יכול/ה להזדהות. כל ניסיון כושל צורך ניסיון מהמכסה, כדי שלא ניתן יהיה לנחש כתובות."""
+    customer = customers.find_customer_by_email(email)
+    if customer is None:                                    # האימייל לא רשום אצלנו
         if _spend_attempt(state):
             return _blocked_message()
-        return ("לא נמצא/ה במערכת שלנו לקוח/ה עם תעודת הזהות הזו. "
-                "אם זו הפעם הראשונה שלך אצלנו - נשמח לארח אותך! "
-                f"{_BOOKING_HINT} אם את/ה בטוח/ה שכבר ביקרת אצלנו, אפשר לבדוק את המספר ולנסות שוב.")
+        return ("האימייל הזה לא רשום אצלנו. אם זו הפעם הראשונה שלך - איזה כיף, נשמח לארח אותך! "
+                f"{_BOOKING_HINT} ואם כבר היית אצלנו, שווה לבדוק אם זו הכתובת הנכונה.")
 
     if claimed_name and not _name_matches(claimed_name, customer["full_name"]):
-        # הגנת עומק: תעודת זהות אמיתית, אך בשם שאינו מתיישב עם הרשום עליה במערכת
+        # הגנת עומק: אימייל אמיתי, אבל בשם שלא מסתדר עם מה שרשום עליו אצלנו
         if _spend_attempt(state):
             return _blocked_message()
-        return "הפרטים שנמסרו אינם מתיישבים זה עם זה. אפשר לבדוק את השם ואת מספר תעודת הזהות ולנסות שוב?"
+        return "רגע, השם והאימייל לא ממש מסתדרים לי יחד. אפשר לבדוק אותם שוב?"
 
     state["candidate_customer_id"] = customer["id"]     # מרגע זה זהו הלקוח/ה של השיחה
     return _after_verification(state, customer)
 
 
-def _handle_await_id(state, user_message):
-    """השוואת תעודת הזהות שהוזנה מול הערך השמור עבור המועמד/ת. השלב הקריטי מבחינת אבטחה."""
+def _handle_await_email(state, user_message):
+    """השוואת האימייל שהוזן מול זה שרשום אצלנו עבור המועמד/ת. השלב הקריטי מבחינת אבטחה."""
     candidate = customers.get_customer(state["candidate_customer_id"])
     if not candidate:                                     # הגנה (למשל אם הלקוח/ה נמחק/ה באמצע)
         state["stage"] = STAGE_START
         state["candidate_customer_id"] = None
         state["identity_verified"] = False
-        return "משהו השתבש באיתור הפרטים שלך. אפשר להתחיל שוב ולכתוב את השם שלך?"
+        return "משהו השתבש לי כאן. אפשר להתחיל מהתחלה - איך קוראים לך?"
 
-    if not _looks_like_id_attempt(user_message):          # ההודעה אינה ניסיון להזין תעודת זהות
+    if not _looks_like_email(user_message):               # ההודעה אינה ניסיון להזין אימייל
         extracted = _extract(user_message)
         if extracted:
-            public = _public_answer(extracted["intent"])
-            if public:                                       # שאלה לגיטימית - עונים בלי לגבות ניסיון
-                return public + "\n\nכדי להמשיך, אפשר להזין את מספר תעודת הזהות."
-        # חשוב: לא מנצלים כאן ניסיון - המשתמש/ת בכלל לא ניסה/תה לנחש מספר
-        return ("כדי להגן על הפרטיות שלך אני חייב/ת לאמת את זהותך לפני שאוכל למסור פרטים או "
-                "לבצע פעולות. אפשר להזין את מספר תעודת הזהות (9 ספרות)?")
+            public = _public_answer(extracted["intent"])     # שאלה לגיטימית - עונים בלי לגבות ניסיון
+            if public:
+                return public + "\n\nוכדי להמשיך, רק צריך את האימייל שרשום אצלנו."
+        # חשוב: לא מנצלים כאן ניסיון - לא היה כאן ניחוש בכלל
+        return ("אני רוצה לוודא שזה באמת את/ה לפני שאני מוסר/ת פרטים או עושה משהו בחשבון. "
+                "מה האימייל שרשום אצלנו?")
 
-    entered_id = _digits_only(user_message)
-    real_id = _digits_only(candidate.get("id_number") or "")
+    entered = _extract_email(user_message)                # האימייל שהוזן, מנורמל
+    real = (candidate.get("email") or "").strip().lower()   # והאימייל הרשום במערכת
 
-    if real_id and entered_id == real_id:                 # התאמה מדויקת - ורק זה מאפשר המשך
+    if real and entered == real:                          # התאמה מדויקת - ורק זה מאפשר המשך
         return _after_verification(state, candidate)
 
-    other_owner = customers.find_customer_by_id_number(entered_id)   # האם התעודה בכלל קיימת אצלנו?
+    other_owner = customers.find_customer_by_email(entered)   # האם הכתובת בכלל קיימת אצלנו?
     if _spend_attempt(state):
         return _blocked_message()
 
     remaining = state["attempts_left"]
     if other_owner is None:
-        return (f"תעודת הזהות הזו אינה רשומה במערכת שלנו. "
-                f"אם זו הפעם הראשונה שלך אצלנו - {_BOOKING_HINT} "
-                f"אם כבר ביקרת אצלנו, אפשר לבדוק את המספר ולנסות שוב (נותרו {remaining} ניסיונות).")
-    # התעודה קיימת אך שייכת ללקוח/ה אחר/ת - לא חושפים בשום אופן למי
-    return (f"מספר תעודת הזהות שהוזן אינו תואם ללקוח/ה בשם {candidate['full_name']}. "
-            f"נותרו {remaining} ניסיונות.")
+        return (f"האימייל הזה לא רשום אצלנו. אם זו הפעם הראשונה שלך - {_BOOKING_HINT} "
+                f"ואם כבר היית אצלנו, אפשר לנסות כתובת אחרת (נשארו {remaining} ניסיונות).")
+    # הכתובת קיימת אך שייכת ללקוח/ה אחר/ת - לא חושפים בשום אופן למי
+    return (f"האימייל הזה לא מתאים למה שרשום אצלנו על {candidate['full_name']}. "
+            f"נשארו {remaining} ניסיונות.")
 
 
 # ============================== מסירת פרטי התור הקיים ==============================
@@ -474,17 +478,16 @@ def _build_verified_reply(state, candidate):
     claimed_date = state.get("claimed_date")
 
     if not appt:
-        return (f"מצאתי אותך, {candidate['full_name']}! "
-                f"לא נמצא לך כרגע אף תור עתידי פתוח במערכת. {_BOOKING_HINT}")
+        return (f"היי {candidate['full_name']}! אין לך תור פתוח כרגע. {_BOOKING_HINT}")
 
     if claimed_date and claimed_date != appt["appointment_date"]:      # פער בין הטענה למציאות
         phrased = _phrase_correction(candidate["full_name"], claimed_date, appt)
         if phrased:
             return phrased
-        return (f"מצאתי אותך, {candidate['full_name']}! שימו לב: התור שלך בפועל הוא ב-"
-                f"{_format_appointment_details(appt)} (ולא ב-{_format_date_he(claimed_date)} כפי שציינת).")
+        return (f"היי {candidate['full_name']}! שים/י לב - התור שלך הוא בעצם ב-"
+                f"{_format_appointment_details(appt)}, ולא ב-{_format_date_he(claimed_date)} כמו שאמרת.")
 
-    return f"מצאתי אותך, {candidate['full_name']}! התור שלך הוא ב-{_format_appointment_details(appt)}."
+    return f"היי {candidate['full_name']}! התור שלך הוא ב-{_format_appointment_details(appt)}."
 
 
 def _phrase_correction(full_name, claimed_date, appt):
@@ -542,12 +545,12 @@ def _start_or_continue_booking(state):
 
     if not booking["service_ids"]:                                  # (1) אילו טיפולים
         state["stage"] = STAGE_BOOKING
-        return "בשמחה! אילו טיפולים תרצה/י?\n" + _services_answer()
+        return "יאללה, בואו נקבע! מה בא לך לעשות?\n" + _services_answer()
 
     if not booking["date"]:                                          # (2) באיזה תאריך
         state["stage"] = STAGE_BOOKING
-        return (f"נבחרו: {', '.join(booking['service_names'])}. לאיזה תאריך תרצה/י לקבוע? "
-                f"(אפשר לכתוב למשל 'מחר' או '15.03.2027')")
+        return (f"סבבה, {', '.join(booking['service_names'])}. לאיזה תאריך? "
+                f"(אפשר גם 'מחר' או 'יום ראשון הקרוב')")
 
     date_problem = _validate_booking_date(booking["date"])           # ולידציה של התאריך שנבחר
     if date_problem:
@@ -574,12 +577,11 @@ def _start_or_continue_booking(state):
 
     if not booking["gender"]:                                        # (4) מגדר בעל/ת התור (שדה חובה במערכת)
         state["stage"] = STAGE_BOOKING
-        return "עבור מי התור - גבר או אישה?"
+        return "ועוד דבר קטן - התור הוא לגבר או לאישה?"
 
     if not state.get("identity_verified"):                           # (5) זיהוי - רק אחרי שהפרטים מלאים
         state["stage"] = STAGE_BOOKING_IDENTITY
-        return ("מעולה, נשאר רק לזהות אותך כדי להשלים את ההזמנה. "
-                "אפשר לכתוב את השם המלא, מספר הטלפון ותעודת הזהות שלך?")
+        return ("מעולה! נשאר רק להכיר - מה השם המלא, הטלפון והאימייל שלך?")
 
     return _present_booking_summary(state)                           # (6) סיכום לאישור מפורש
 
@@ -610,7 +612,7 @@ def _present_booking_summary(state):
             f"• תאריך: {_format_date_he(booking['date'])} בשעה {booking['time']}\n"
             f"• משך: {duration} דקות\n"
             f"• מחיר: {int(price)} ש\"ח\n\n"
-            f"לאשר את ההזמנה? (כן / לא)")
+            f"מאשר/ת? (כן / לא)")
 
 
 def _handle_booking(state, user_message):
@@ -625,7 +627,7 @@ def _handle_booking(state, user_message):
     if extracted["confirm"] == "no" or _yes_no_intent(user_message) == "negative":
         state["booking"] = _empty_booking()                    # ביטול תהליך ההזמנה לבקשת המשתמש/ת
         state["stage"] = STAGE_VERIFIED if state.get("identity_verified") else STAGE_START
-        return "ביטלתי את תהליך קביעת התור. אפשר לעזור במשהו אחר?"
+        return "אין בעיה, עזבתי את זה. משהו אחר?"
 
     before = dict(state["booking"])                           # צילום מצב, כדי לזהות אם התקדמנו
     _absorb_booking_details(state, extracted)
@@ -639,11 +641,11 @@ def _handle_booking(state, user_message):
 
 
 def _handle_booking_identity(state, user_message):
-    """אוסף שם/טלפון/תעודת זהות כדי להשלים את ההזמנה: אם התעודה כבר רשומה במערכת - זהו אימות
-    של לקוח/ה קיים/ת. אם היא אינה רשומה - נרשום לקוח/ה חדש/ה עם הפרטים שנמסרו."""
+    """אוסף שם/טלפון/אימייל כדי להשלים את ההזמנה: אם האימייל כבר רשום אצלנו - זהו אימות של
+    לקוח/ה קיים/ת. אם הוא לא רשום - נרשום לקוח/ה חדש/ה עם הפרטים שנמסרו."""
     extracted = _extract(user_message)
     if extracted is None:
-        return "לא הצלחתי להבין. אפשר לכתוב שוב את השם המלא, הטלפון ותעודת הזהות?"
+        return "לא הצלחתי להבין. אפשר לכתוב שוב את השם, הטלפון והאימייל?"
 
     if extracted["intent"] == nlu.INTENT_ADMIN_REQUEST:
         return _ADMIN_REFUSAL
@@ -653,51 +655,55 @@ def _handle_booking_identity(state, user_message):
         registration["full_name"] = extracted["name"]
     if extracted["phone"]:
         registration["phone"] = extracted["phone"]
-    if extracted["id_number"]:
-        registration["id_number"] = extracted["id_number"]
+    if extracted["email"]:
+        registration["email"] = extracted["email"]
 
     if not registration["full_name"]:
-        return "מה השם המלא שלך?"
+        return "איך קוראים לך?"
     if not registration["phone"]:
-        return "מה מספר הטלפון שלך?"
-    if not registration["id_number"]:
-        return "ומה מספר תעודת הזהות שלך? (לצורך אימות בלבד)"
+        return "ומה מספר הטלפון שלך?"
+    if not registration["email"]:
+        return "ואיזה אימייל? (הוא ישמש אותי לזהות אותך בפעם הבאה)"
 
-    existing = customers.find_customer_by_id_number(registration["id_number"])
-    if existing:                                              # התעודה כבר רשומה - זהו לקוח/ה קיים/ת
+    existing = customers.find_customer_by_email(registration["email"])
+    if existing:                                              # האימייל כבר רשום - זהו לקוח/ה קיים/ת
         if not _name_matches(registration["full_name"], existing["full_name"]):
-            # הגנת עומק: תעודת זהות של אדם אחד בשם של אדם אחר - לא מאמתים
+            # הגנת עומק: אימייל של אדם אחד בשם של אדם אחר - לא מאמתים
             state["registration"] = _empty_registration()
             if _spend_attempt(state):
                 return _blocked_message()
-            return ("הפרטים שנמסרו אינם מתיישבים זה עם זה. "
-                    f"אפשר לבדוק את השם ואת מספר תעודת הזהות ולנסות שוב? "
-                    f"(נותרו {state['attempts_left']} ניסיונות)")
+            return ("רגע, השם והאימייל לא ממש מסתדרים לי יחד. אפשר לבדוק אותם שוב? "
+                    f"(נשארו {state['attempts_left']} ניסיונות)")
         state["candidate_customer_id"] = existing["id"]
         state["identity_verified"] = True                       # אימות מוצלח של לקוח/ה קיים/ת
         return _present_booking_summary(state)
 
     phone_owner = customers.find_customer_by_phone(registration["phone"])
     if phone_owner:
-        # הטלפון שייך ללקוח/ה קיים/ת, אבל תעודת הזהות שנמסרה אינה שלו/ה. לא נרשום לקוח/ה חדש/ה
-        # על טלפון קיים, וגם לא נקשר לרשומה הקיימת בלי אימות - שני המסלולים היו פרצת אבטחה.
+        # הטלפון שייך ללקוח/ה קיים/ת, אבל האימייל שנמסר אינו שלו/ה. לא נרשום לקוח/ה חדש/ה על
+        # טלפון קיים (זה היה יוצר רשומות כפולות על מספר של מישהו אחר), וגם לא נקשר לרשומה
+        # הקיימת בלי אימות - שני המסלולים היו פרצה.
         state["registration"] = _empty_registration()
         if _spend_attempt(state):
             return _blocked_message()
-        return ("מספר הטלפון הזה כבר רשום אצלנו, אבל תעודת הזהות שנמסרה אינה תואמת לו. "
-                "אם זה הטלפון שלך, אפשר להזין את תעודת הזהות הרשומה אצלנו. "
-                f"(נותרו {state['attempts_left']} ניסיונות)")
+        return ("הטלפון הזה כבר רשום אצלנו, אבל עם אימייל אחר. אם זה הטלפון שלך, אפשר לכתוב "
+                f"את האימייל שרשום אצלנו. (נשארו {state['attempts_left']} ניסיונות)")
 
     # לקוח/ה חדש/ה לגמרי: יוצרים רשומה. אין כאן סיכון פרטיות - הפרטים הם של מי שמוסר/ת אותם,
     # ולא נחשף שום מידע קיים. זו בדיוק ההתנהגות של טופס ההזמנה באתר, שיוצר לקוח/ה אוטומטית.
-    new_id = customers.add_customer(
-        full_name=registration["full_name"],
-        phone=registration["phone"],
-        id_number=registration["id_number"],
-    )
+    try:
+        new_id = customers.add_customer(
+            full_name=registration["full_name"],
+            phone=registration["phone"],
+            email=registration["email"],
+        )
+    except ValueError as error:                               # אימייל לא תקין או כפול
+        state["registration"]["email"] = None                    # מנקים רק את האימייל, לא את הכל
+        return f"{error}. אפשר לנסות כתובת אחרת?"
+
     state["candidate_customer_id"] = new_id
     state["identity_verified"] = True      # הפרטים נמסרו על ידי בעליהם - מכאן זו זהות מאומתת
-    return ("נרשמת אצלנו בהצלחה! 🎉\n\n" + _present_booking_summary(state))
+    return ("נרשמת אצלנו, ברוך/ה הבא/ה! 🎉\n\n" + _present_booking_summary(state))
 
 
 def _handle_booking_confirm(state, user_message):
@@ -718,8 +724,8 @@ def _handle_booking_confirm(state, user_message):
     if answer == "negative":
         state["booking"] = _empty_booking()
         state["stage"] = STAGE_VERIFIED
-        return "בסדר גמור, לא קבעתי כלום. אפשר לעזור במשהו אחר?"
-    return "לא הבנתי - לאשר את ההזמנה? אפשר לענות 'כן' או 'לא'."
+        return "בסדר גמור, לא קבעתי כלום. משהו אחר?"
+    return "לא הבנתי - לקבוע את התור? כן או לא?"
 
 
 def _book_appointment(state):
@@ -747,7 +753,7 @@ def _book_appointment(state):
                f"בשעה {booking['time']}")
     state["booking"] = _empty_booking()                       # ניקוי הטיוטה אחרי ביצוע מוצלח
     state["stage"] = STAGE_VERIFIED
-    return f"התור נקבע בהצלחה! ✅\n{summary}\n\nנתראה! אפשר לבטל אותו כאן בצ'אט בכל שלב."
+    return f"סגור! ✅\n{summary}\n\nנתראה! אם משהו משתנה - אפשר לבטל כאן בכל רגע."
 
 
 # ============================== ביטול תור ==============================
@@ -765,7 +771,7 @@ def _offer_cancellation(state, preferred_date=None):
     upcoming = _load_verified_appointment_list(state)         # שליפה מאובטחת - רק של מי שאומת/ה
     if not upcoming:
         state["stage"] = STAGE_VERIFIED
-        return "לא נמצא לך תור עתידי פתוח לביטול."
+        return "אין לך תור עתידי לבטל."
 
     if preferred_date:                                        # אם צוין תאריך מסוים - מצמצמים לפיו
         matching = [a for a in upcoming if a["appointment_date"] == preferred_date]
@@ -775,14 +781,14 @@ def _offer_cancellation(state, preferred_date=None):
     if len(upcoming) == 1:                                    # תור יחיד - ישר לאישור
         state["cancel_target_id"] = upcoming[0]["id"]
         state["stage"] = STAGE_CANCEL_CONFIRM
-        return f"התור שלך הוא ב-{_format_appointment_details(upcoming[0])}.\nלבטל אותו? (כן / לא)"
+        return f"התור שלך הוא ב-{_format_appointment_details(upcoming[0])}.\nלבטל? (כן / לא)"
 
     lines = [f"{index}. {_format_appointment_details(appt)}"     # רשימה ממוספרת לבחירה
              for index, appt in enumerate(upcoming, start=1)]
     state["cancel_target_id"] = None
     state["stage"] = STAGE_CANCEL_CHOOSE
-    return ("יש לך כמה תורים עתידיים:\n" + "\n".join(lines) +
-            "\n\nאיזה מהם לבטל? אפשר לכתוב את המספר או את התאריך.")
+    return ("יש לך כמה תורים:\n" + "\n".join(lines) +
+            "\n\nאיזה מהם לבטל? אפשר פשוט את המספר.")
 
 
 def _handle_cancel_choose(state, user_message):
@@ -834,8 +840,8 @@ def _handle_cancel_confirm(state, user_message):
         return _cancel_appointment(state)                     # הפעולה עצמה - רק כאן
     if answer == "negative":
         state["stage"] = STAGE_VERIFIED
-        return "בסדר, השארתי את התור שלך כמו שהוא. אפשר לעזור במשהו אחר?"
-    return "לא הבנתי - לבטל את התור? אפשר לענות 'כן' או 'לא'."
+        return "אוקיי, השארתי אותו. משהו אחר?"
+    return "לא הבנתי - לבטל את התור? כן או לא?"
 
 
 def _cancel_appointment(state):
@@ -858,7 +864,7 @@ def _cancel_appointment(state):
     appointments.delete_appointment(appt["id"])                 # המחיקה עצמה
     state["cancel_target_id"] = None
     state["stage"] = STAGE_VERIFIED
-    return f"התור בוטל בהצלחה. ✅\n(התור שבוטל: {details})\n\n{_BOOKING_HINT}"
+    return f"בוטל. ✅\n({details})\n\n{_BOOKING_HINT}"
 
 
 # ============================== שיחה אחרי אימות ==============================
@@ -871,11 +877,11 @@ def _handle_verified(state, user_message):
         state["stage"] = STAGE_START
         state["candidate_customer_id"] = None
         state["identity_verified"] = False
-        return "משהו השתבש. אפשר להתחיל שוב ולכתוב את השם שלך?"
+        return "משהו השתבש לי. אפשר להתחיל מחדש - איך קוראים לך?"
 
     extracted = _extract(user_message)
     if extracted is None:
-        return "לא הצלחתי להבין את השאלה. אפשר לנסח מחדש?"
+        return "לא בטוח/ה שהבנתי. אפשר לנסח אחרת?"
 
     intent = extracted["intent"]
 
@@ -884,8 +890,8 @@ def _handle_verified(state, user_message):
 
     if extracted["name"] and not _name_matches(extracted["name"], customer["full_name"]):
         # שאלה על אדם אחר - סירוב מנומס, בלי שום שליפה של מידע עליו
-        return ("אני יכול/ה למסור מידע ולבצע פעולות רק עבור מי שאומת/ה בשיחה הזו. "
-                "כדי לטפל בתור של אדם אחר, יש להתחיל שיחה חדשה ולעבור אימות בנפרד.")
+        return ("אני יכול/ה לעזור רק למי שהזדהה/תה כאן בשיחה. בשביל תור של מישהו אחר - "
+                "צריך להתחיל שיחה חדשה ולהזדהות בנפרד.")
 
     if intent == nlu.INTENT_CANCEL:                           # בקשה מפורשת לבטל
         wanted = extracted["claimed_date"] or extracted["requested_date"]   # אולי צוין איזה תור
@@ -906,5 +912,5 @@ def _handle_verified(state, user_message):
     if intent == nlu.INTENT_CHECK_APPOINTMENT:                # בקשה לראות שוב את פרטי התור
         return _build_verified_reply(state, customer)
 
-    return ("אפשר לבקש ממני לבדוק את התור שלך, לקבוע תור חדש, לבטל תור קיים, "
-            "או לשאול על מחירי טיפולים ושעות פתיחה.")
+    return ("אפשר לבקש ממני לבדוק את התור שלך, לקבוע חדש, לבטל קיים, "
+            "או לשאול על מחירים ושעות פתיחה.")

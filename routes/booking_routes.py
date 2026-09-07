@@ -54,19 +54,28 @@ def submit_booking():
     appointment_time = request.form.get("appointment_time")    # שעת התור שנבחרה
     full_name = request.form.get("full_name")             # שם הלקוח מהטופס
     phone = request.form.get("phone")                       # טלפון הלקוח מהטופס
-    gender = request.form.get("gender")                       # מגדר בעל/ת התור מהטופס
+    email = request.form.get("email")                         # אימייל הלקוח מהטופס - שדה חובה
+    gender = request.form.get("gender")                         # מגדר בעל/ת התור מהטופס
 
     if not service_ids:                                                        # אם לא סומן אף שירות בטופס
         flash("נא לבחור לפחות שירות אחד")                                          # הודעת שגיאה למשתמש
         return redirect(url_for("booking.show_booking_page"))                        # חזרה לעמוד ההזמנה
 
+    if not email:                                                              # אימייל הוא שדה חובה - הוא אמצעי האימות
+        flash("חובה להזין כתובת אימייל - היא משמשת לאימות הזהות שלך במערכת")
+        return redirect(url_for("booking.show_booking_page"))
+
     customer_id = None                                                       # מזהה הלקוח שישויך לתור (ריק כברירת מחדל)
     if full_name and phone:                                                    # רק אם הוזנו שם וטלפון תקינים
-        existing_customer = customers.find_customer_by_phone(phone)              # חיפוש לקוח קיים לפי אותו טלפון
-        if existing_customer:                                                      # אם נמצא לקוח קיים עם הטלפון הזה
+        existing_customer = customers.find_customer_by_email(email)              # חיפוש לקוח קיים לפי האימייל שהוזן
+        if existing_customer:                                                      # אם האימייל כבר רשום - זהו אותו לקוח
             customer_id = existing_customer["id"]                                    # שימוש ברשומת הלקוח הקיימת
-        else:                                                                      # אם זה טלפון חדש שלא קיים במערכת
-            customer_id = customers.add_customer(full_name=full_name, phone=phone)   # יצירת לקוח חדש אוטומטית
+        else:                                                                      # אימייל חדש - יוצרים לקוח/ה חדש/ה
+            try:
+                customer_id = customers.add_customer(full_name=full_name, phone=phone, email=email)
+            except ValueError as error:                                              # אימייל לא תקין או כפול
+                flash(str(error))
+                return redirect(url_for("booking.show_booking_page"))
 
     try:
         appointments.add_appointment(                                  # ניסיון להוסיף את התור לבסיס הנתונים

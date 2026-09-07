@@ -138,10 +138,66 @@ def get_appointment(appointment_id):
     return dict(row) if row else None                                # החזרת מילון אם נמצאה רשומה, אחרת None
 
 
+def is_past(appointment):
+    """בודק האם מועד התור כבר עבר (התאריך והשעה יחד, לא רק התאריך). משמש כדי לקבוע אילו
+    פעולות מותרות על התור: אי אפשר לסמן 'בוצע' תור שעדיין לא הגיע."""
+    import datetime                                                     # ייבוא מקומי לעבודה עם זמן
+    try:
+        moment = datetime.datetime.fromisoformat(
+            f"{appointment['appointment_date']}T{appointment['appointment_time']}"
+        )
+    except (ValueError, KeyError, TypeError):                            # תאריך/שעה לא תקינים - לא נחשב "עבר"
+        return False
+    return moment <= datetime.datetime.now()                              # עבר אם המועד כבר מאחורינו
+
+
+def list_past_pending_appointments():
+    """מחזיר את כל התורים שמועדם כבר עבר אך הם עדיין מסומנים 'ממתין' - כלומר תורים שהמנהל/ת
+    עדיין לא סימן/ה מה קרה איתם בפועל. משמש להקפצת השאלה בכניסה למסכי הניהול."""
+    import datetime                                                     # ייבוא מקומי לעבודה עם זמן
+    now = datetime.datetime.now()                                         # הרגע הנוכחי
+    connection = database.get_connection()                                  # פתיחת חיבור לבסיס הנתונים
+    rows = connection.execute(                                                # שליפת כל התורים הממתינים, עם פרטיהם
+        "SELECT appointments.*, customers.full_name AS customer_name, "
+        "GROUP_CONCAT(services.name, ', ') AS service_names "
+        "FROM appointments "
+        "LEFT JOIN customers ON appointments.customer_id = customers.id "
+        "LEFT JOIN appointment_services ON appointment_services.appointment_id = appointments.id "
+        "LEFT JOIN services ON appointment_services.service_id = services.id "
+        "WHERE appointments.status = 'ממתין' AND appointments.appointment_date <= ? "
+        "GROUP BY appointments.id "
+        "ORDER BY appointments.appointment_date, appointments.appointment_time",
+        (now.date().isoformat(),)
+    ).fetchall()
+    connection.close()                                                       # סגירת החיבור
+    # סינון סופי בפייתון, כדי להתחשב גם בשעה ולא רק בתאריך (תור היום ב-19:00 עדיין לא "עבר" ב-10:00)
+    return [dict(row) for row in rows if is_past(dict(row))]
+
+
 def update_status(appointment_id, new_status):
-    """מעדכן את הסטטוס של תור קיים (ממתין / בוצע / בוטל)."""
-    if new_status not in ("ממתין", "בוצע", "בוטל"):        # ולידציה: מותרים רק שלושה ערכי סטטוס חוקיים
+    """מעדכן את הסטטוס של תור קיים, לפי כללי הזמן של המערכת:
+
+    • 'בוצע' - מותר אך ורק לתור שמועדו כבר עבר. אי אפשר להצהיר שתור עתידי כבר בוצע.
+    • 'בוטל' - אינו נשמר כסטטוס אלא *מוחק* את התור מהמערכת, לפי בקשת המנהל/ת: תור שבוטל
+      לא אמור להמשיך להופיע ברשימת התורים.
+    • 'ממתין' - מותר תמיד (החזרת תור למצב ההתחלתי שלו)."""
+    if new_status not in ("ממתין", "בוצע", "בוטל"):        # ולידציה: מותרים רק שלושה ערכים חוקיים
         raise ValueError("סטטוס לא חוקי")                     # שגיאה ברורה אם התקבל ערך לא צפוי
+
+    appointment = get_appointment(appointment_id)              # שליפת התור, כדי לבדוק את מועדו
+    if not appointment:                                          # התור לא נמצא (אולי נמחק בינתיים)
+        raise ValueError("התור לא נמצא במערכת")
+
+    if new_status == "בוטל":                                    # ביטול = מחיקה, לא סטטוס
+        delete_appointment(appointment_id)                         # התור יורד מהרשימה לגמרי
+        return "deleted"                                             # מחזירים סימון, כדי שה-route ידע מה לומר
+
+    if new_status == "בוצע" and not is_past(appointment):        # אי אפשר לסמן 'בוצע' לתור עתידי
+        raise ValueError(
+            f"לא ניתן לסמן 'בוצע' לתור שטרם הגיע מועדו "
+            f"({appointment['appointment_date']} בשעה {appointment['appointment_time']})"
+        )
+
     connection = database.get_connection()                      # פתיחת חיבור לבסיס הנתונים
     connection.execute(                                            # עדכון שדה הסטטוס של התור המבוקש
         "UPDATE appointments SET status = ? WHERE id = ?",
@@ -149,6 +205,7 @@ def update_status(appointment_id, new_status):
     )
     connection.commit()                                              # שמירת השינוי בפועל
     connection.close()                                                 # סגירת החיבור
+    return "updated"                                                     # עדכון רגיל הושלם
 
 
 def delete_appointment(appointment_id):

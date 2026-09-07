@@ -596,3 +596,42 @@ button:hover, .btn:hover {
         border-radius: 50%;
     }
 }
+
+/* ---------- מסך סקירת תורים שעבר זמנם (admin_review_past.html) ---------- */
+
+.review-intro {
+    border-inline-start: 4px solid var(--color-primary);   /* פס צבע בצד, כדי להבליט את ההסבר */
+}
+
+.review-card {
+    display: flex;                     /* פרטי התור בצד אחד, כפתורי ההכרעה בצד השני */
+    justify-content: space-between;       /* פיזור לשני הקצוות */
+    align-items: center;                     /* יישור אנכי למרכז */
+    flex-wrap: wrap;                            /* מעבר שורה במסכים צרים */
+    gap: 12px;                                     /* רווח כשיש מעבר שורה */
+    margin-bottom: 12px;                              /* רווח קטן יותר בין כרטיסים ברצף */
+}
+
+.review-when {
+    font-weight: bold;                    /* התאריך והשעה הם המידע הראשי כאן */
+    color: var(--color-primary-dark);        /* בצבע המותג, כדי שיבלוט */
+}
+
+.review-who {
+    font-size: 1.05em;   /* שם הלקוח/ה, מעט גדול מהפרטים הנלווים */
+}
+
+.review-what {
+    font-size: 0.9em;          /* הטיפולים והמחיר - מידע משני */
+    color: var(--color-text);     /* בצבע טקסט רגיל */
+    opacity: 0.8;                    /* מעט דהוי, כדי לא להתחרות בשם ובתאריך */
+}
+
+.review-actions {
+    display: flex;   /* שני כפתורי ההכרעה זה לצד זה */
+    gap: 8px;           /* רווח ביניהם */
+}
+
+.review-actions button {
+    margin-top: 0;   /* ביטול הרווח העליון הכללי של כפתורים, ליישור בתוך הכרטיס */
+}

@@ -14,7 +14,7 @@
             <option value="">הכל</option>
             <option value="ממתין" {% if status_filter == 'ממתין' %}selected{% endif %}>ממתין</option>
             <option value="בוצע" {% if status_filter == 'בוצע' %}selected{% endif %}>בוצע</option>
-            <option value="בוטל" {% if status_filter == 'בוטל' %}selected{% endif %}>בוטל</option>
+            {# אין כאן "בוטל": תור שמבוטל נמחק מהמערכת ולא נשמר עם סטטוס כזה #}
         </select>
         <label for="date">תאריך</label>  {# תווית לסינון לפי תאריך #}
         <input type="date" id="date" name="date" value="{{ date_filter or '' }}">  {# שדה תאריך לסינון #}
@@ -92,8 +92,12 @@
                     <form class="inline-form" method="POST" action="{{ url_for('admin.update_appointment_status', appointment_id=appt.id) }}">
                         <select name="status" onchange="this.form.submit()">  {# שינוי הסטטוס שולח את הטופס מיד #}
                             <option value="ממתין" {% if appt.status == 'ממתין' %}selected{% endif %}>ממתין</option>
-                            <option value="בוצע" {% if appt.status == 'בוצע' %}selected{% endif %}>בוצע</option>
-                            <option value="בוטל" {% if appt.status == 'בוטל' %}selected{% endif %}>בוטל</option>
+                            {# "בוצע" מוצג רק לתור שמועדו כבר עבר - אי אפשר להצהיר שתור עתידי כבר בוצע.
+                               הכלל נאכף גם בשרת (models/appointments.update_status), לא רק כאן בתצוגה. #}
+                            {% if appt.is_past %}
+                                <option value="בוצע" {% if appt.status == 'בוצע' %}selected{% endif %}>בוצע</option>
+                            {% endif %}
+                            <option value="בוטל">ביטול (הסרה מהרשימה)</option>  {# "בוטל" מוחק את התור #}
                         </select>
                     </form>
                     <form class="inline-form" method="POST" action="{{ url_for('admin.delete_appointment', appointment_id=appt.id) }}">
