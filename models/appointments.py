@@ -152,14 +152,31 @@ def update_status(appointment_id, new_status):
 
 
 def delete_appointment(appointment_id):
-    """מוחק תור לחלוטין מבסיס הנתונים (משמש לביטול תור עתידי, כפי שנדרש בדרישות)."""
+    """מוחק תור לחלוטין מבסיס הנתונים (משמש לביטול תור עתידי, כפי שנדרש בדרישות).
+
+    למה מוחקים כאן ידנית גם את השורות התלויות, ולא סומכים על ON DELETE CASCADE שמוגדר
+    ב-schema.sql? כי "CREATE TABLE IF NOT EXISTS" אינו משנה טבלה שכבר קיימת. בסיס נתונים
+    שנוצר בגרסה מוקדמת של הפרויקט - למשל זה שרץ כבר על השרת החי - נשאר עם המפתחות הזרים
+    הנוקשים המקוריים, ולכן מחיקה ישירה של תור נכשלה שם ב-"FOREIGN KEY constraint failed"
+    (שגיאת 500 אמיתית שנצפתה בשרת). מחיקה מפורשת של התלויות עובדת נכון בשני המקרים -
+    גם בבסיס נתונים ישן וגם בחדש - ולא תלויה כלל בהגדרות הסכמה."""
     connection = database.get_connection()                     # פתיחת חיבור לבסיס הנתונים
-    connection.execute(                                           # מחיקת השורה המתאימה לתור המבוקש
-        "DELETE FROM appointments WHERE id = ?",
-        (appointment_id,)
-    )
-    connection.commit()                                             # שמירת המחיקה בפועל
-    connection.close()                                                # סגירת החיבור
+    try:
+        connection.execute(                                       # (1) ניתוק קישורי השירותים של התור
+            "DELETE FROM appointment_services WHERE appointment_id = ?", (appointment_id,)
+        )
+        connection.execute(                                         # (2) ניתוק חשבוניות מהתור, בלי למחוק אותן
+            "UPDATE invoices SET appointment_id = NULL WHERE appointment_id = ?", (appointment_id,)
+        )
+        connection.execute(                                           # (3) ורק עכשיו - מחיקת התור עצמו
+            "DELETE FROM appointments WHERE id = ?", (appointment_id,)
+        )
+        connection.commit()                                             # שמירת שלושת השינויים יחד
+    except Exception:                                                     # אם משהו נכשל באמצע
+        connection.rollback()                                               # מבטלים הכל, בלי להשאיר מצב חלקי
+        raise                                                                 # ומעבירים את השגיאה הלאה
+    finally:
+        connection.close()                                                     # סגירת החיבור בכל מקרה
 
 
 def get_next_upcoming_appointment(customer_id):
