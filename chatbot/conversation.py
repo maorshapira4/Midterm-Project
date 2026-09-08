@@ -96,7 +96,7 @@ def new_state():
 def _empty_booking():
     """טיוטת הזמנה ריקה: מה שנאסף עד כה עבור תור חדש."""
     return {"service_ids": [], "service_names": [], "date": None, "time": None,
-            "time_options": [], "gender": None}
+            "time_options": [], "gender": None, "gender_asked": 0}
 
 
 def _empty_registration():
@@ -169,8 +169,23 @@ def _ensure_state_shape(state):
 
 # ============================== כלי עזר קטנים ==============================
 
+# ביטויי "לא אכפת לי" - הם *מתחילים* ב"לא", אבל הם לא סירוב לתהליך אלא אדישות לשאלה עצמה.
+# בלי החריג הזה, "לא משנה" בתשובה לשאלת המגדר נקרא כ"לא" וביטל את כל ההזמנה שכבר נאספה.
+_INDIFFERENT_PATTERNS = (
+    r"לא\s+מ(שנה|עניין)", r"לא\s+אכפת", r"לא\s+רלוונטי", r"לא\s+חשוב",
+    r"מה\s+שבא\s+לך", r"לא\s+רוצה\s+ל(ציין|ענות|הגיד)", r"לא\s+מעדיף",
+)
+
+
+def _is_indifferent(text):
+    """האם ההודעה מביעה אדישות ("לא משנה") ולא סירוב ("לא, תעזוב")."""
+    return any(re.search(pattern, text or "") for pattern in _INDIFFERENT_PATTERNS)
+
+
 def _yes_no_intent(text):
     """מזהה תשובה חיובית/שלילית לפי מילים שלמות בלבד (לא תת-מחרוזת), בלי לבזבז קריאת API."""
+    if _is_indifferent(text):                # "לא משנה" הוא לא סירוב - אין כאן כן ואין כאן לא
+        return None
     words = re.findall(r"[\w֐-׿]+", text.strip().lower())
     if any(word in _POSITIVE_WORDS for word in words):
         return "positive"
@@ -623,8 +638,19 @@ def _start_or_continue_booking(state):
                 f"{_format_date_he(booking['date'])}:\n{', '.join(free_slots)}\n\nמה מתאים לך?")
 
     if not booking["gender"]:                                        # (4) מגדר בעל/ת התור (שדה חובה במערכת)
-        state["stage"] = STAGE_BOOKING
-        return "ועוד דבר קטן שאני צריך/ה לרישום - התור הוא לגבר, לאישה, או שתעדיף/י לא לציין?"
+        # השאלה הזו היא שדה חובה בבסיס הנתונים, אבל היא *לא* יכולה להיות מחסום שאי אפשר לעבור:
+        # אם הלקוח/ה מתעלם/ת ממנה (כותב/ת משהו אחר, או פשוט לא רוצה לענות), הזרימה נתקעה קודם
+        # בלולאה אינסופית שחוזרת על אותו משפט בדיוק. לכן שואלים לכל היותר פעמיים, ואז ממשיכים
+        # עם 'אחר' - הערך הנייטרלי - במקום להשאיר את הלקוח/ה תקוע/ה.
+        booking["gender_asked"] = booking.get("gender_asked", 0) + 1
+        if booking["gender_asked"] == 1:
+            state["stage"] = STAGE_BOOKING
+            return "ועוד דבר קטן שאני צריך/ה לרישום - התור הוא לגבר, לאישה, או שתעדיף/י לא לציין?"
+        if booking["gender_asked"] == 2:
+            state["stage"] = STAGE_BOOKING
+            return ("סליחה, לא הבנתי - לגבר או לאישה? "
+                    "ואם זה לא משנה לך, פשוט תכתוב/י 'לא משנה' ונמשיך הלאה.")
+        booking["gender"] = "אחר"                    # ויתרנו על השאלה, ממשיכים בלי לתקוע את השיחה
 
     if not state.get("identity_verified"):                           # (5) זיהוי - רק אחרי שהפרטים מלאים
         state["stage"] = STAGE_BOOKING_IDENTITY
@@ -672,11 +698,17 @@ def _booking_expecting(state):
         return "date"
     if not booking["time"]:
         return "time"
+    if not booking["gender"]:
+        return "gender"
     return None
 
 
 def _handle_booking(state, user_message):
     """שלב איסוף פרטי ההזמנה: כל הודעה עוברת חילוץ, מה שנמצא נקלט לטיוטה, וממשיכים לחסר הבא."""
+    if _booking_expecting(state) == "gender" and _is_indifferent(user_message):
+        state["booking"]["gender"] = "אחר"      # אדישות לשאלה = הערך הנייטרלי, וממשיכים הלאה
+        return _start_or_continue_booking(state)
+
     extracted = _extract(user_message, expecting=_booking_expecting(state))
     if extracted is None:
         return "לא הצלחתי להבין. אפשר לנסח מחדש?"
