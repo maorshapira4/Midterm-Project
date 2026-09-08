@@ -9,8 +9,7 @@
 <div class="card">  {# כרטיס פרטים אישיים #}
     <h2>פרטים אישיים</h2>  {# כותרת אזור הפרטים #}
     <p><strong>טלפון:</strong> {{ customer.phone }}</p>  {# הצגת מספר הטלפון #}
-    <p><strong>אימייל:</strong> {{ customer.email or '-' }}</p>  {# הצגת האימייל, או מקף אם ריק #}
-    <p><strong>כתובת:</strong> {{ customer.address or '-' }}</p>  {# הצגת הכתובת, או מקף אם ריקה #}
+    <p><strong>אימייל:</strong> {{ customer.email }}</p>  {# האימייל - משמש לאימות הלקוח/ה בצ'אטבוט #}
 </div>
 
 <div class="card">  {# כרטיס היסטוריית תורים #}

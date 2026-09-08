@@ -4,7 +4,16 @@ app.py - נקודת הכניסה הראשית של האפליקציה.
 מסכי המערכת (blueprints) אליה, והפעלת השרת המקומי. כדי להריץ את כל המערכת - מריצים קובץ זה בלבד.
 """
 
+import os                                     # לחישוב הנתיב המלא לקובץ .env, ראו הערה למטה
 from datetime import timedelta               # לחישוב משך תפוגת סשן המנהל/ת (חוסר פעילות)
+
+from dotenv import load_dotenv   # טעינת משתני סביבה מקובץ .env מקומי (כמו GEMINI_API_KEY)
+# מציינים את הנתיב המלא ל-.env במפורש (ליד app.py עצמו), ולא סומכים על load_dotenv() לחפש אותו
+# לפי תיקיית העבודה הנוכחית (CWD) - כי תחת שרת WSGI (כמו PythonAnywhere) ה-CWD של התהליך הוא
+# לא בהכרח תיקיית הפרויקט, וחיפוש בלי נתיב מפורש עלול "בשקט" לא למצוא את הקובץ בכלל.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+# הערה: אם קובץ .env לא קיים בכלל (למשל על שרת שבו הוגדר משתנה סביבה אמיתי בדרך אחרת) -
+# הפונקציה הזו פשוט לא עושה כלום ולא זורקת שגיאה, אז זה בטוח להשאיר אותה תמיד.
 
 from flask import Flask, render_template   # מחלקת האפליקציה הראשית של Flask, וכלי הצגת תבניות
 
@@ -16,6 +25,7 @@ from routes.booking_routes import booking_bp     # מסכי הלקוח (הזמנ
 from routes.admin_routes import admin_bp           # מסכי הניהול (תורים, לקוחות, לידים, חשבוניות)
 from routes.dashboard_routes import dashboard_bp     # מסך לוח המחוונים
 from routes.auth_routes import auth_bp                 # מסכי ההתחברות וההתנתקות של המנהל/ת
+from routes.chatbot_routes import chatbot_bp             # מסך הצ'אטבוט ללקוחות (פרויקט הסיום)
 
 
 def create_app():
@@ -32,6 +42,7 @@ def create_app():
     app.register_blueprint(admin_bp)                 # חיבור מסכי הניהול לאפליקציה
     app.register_blueprint(dashboard_bp)               # חיבור מסך הדשבורד לאפליקציה
     app.register_blueprint(auth_bp)                      # חיבור מסכי ההתחברות וההתנתקות לאפליקציה
+    app.register_blueprint(chatbot_bp)                     # חיבור מסך הצ'אטבוט ללקוחות (פרויקט הסיום)
 
     @app.route("/")                                       # הגדרת עמוד הבית של האתר
     def home_page():
